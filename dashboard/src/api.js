@@ -82,8 +82,9 @@ export const getServidoresConfig = () => request('/servidores/config');
 export const setCredencial = (ip, usuario, senha) =>
   request(`/servidores/credencial/${ip}`, { method: 'POST', body: body({ usuario, senha }) });
 export const deleteCredencial = (ip) => request(`/servidores/credencial/${ip}`, { method: 'DELETE' });
-export const setDesabilitado = (ip, disabled = true) =>
-  request(`/servidores/${ip}/desabilitar`, { method: 'PATCH', body: body({ disabled }) });
+export const relerServidor = (ip) => request(`/servidores/${ip}/reler`, { method: 'POST' });
+export const setDesabilitado = (ip, disabled) =>
+  request(`/servidores/${ip}/desabilitado`, { method: 'PUT', body: body({ disabled }) });
 export const cameraAttach = (n) => request(`/incidents/${n}/camera/attach`, { method: 'POST' });
 export const snapshotUrl = (n, code, t = 0) => `${API}/incidents/${n}/camera/snapshot/${encodeURIComponent(code)}?t=${t}`;
 export const getDigifortStatus = () => request('/digifort/status');

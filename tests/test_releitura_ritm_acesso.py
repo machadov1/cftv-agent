@@ -26,6 +26,17 @@ def test_campo_com_prefixo_herdado_e_frase():
     assert field_codes("MDE 011, 001, 002") == ["MDE-011", "MDE-001", "MDE-002"]
     assert field_codes("Câmeras sem conexão RES027 RES028 RES029 RES030 e RES031") == \
         ["RES027", "RES028", "RES029", "RES030", "RES031"]
+    assert field_codes("399, 407, 411, 412, 393, 71, 72 394") == ["399", "407", "411", "412", "393", "71", "72", "394"]
+
+
+def test_numeracao_do_mosaico_na_descricao_sem_campo():
+    from backend.payload import camera_codes
+    desc = ("** PARA DIRECIONAMENTO, PRENCHER O IC ... LCB - SRV-CFTV-PIR01 **\n\n"
+            "Descrição do problema: Usuário relata que a câmera esta sem imagem\n\n"
+            "Nome do ponto de imagem (nome da câmera que aparece no mosaico): 399, 407, 411, 412, 393, 71, 72 394\n"
+            "Código do equipamento: AA42893\n")
+    assert camera_codes(None, "[BR-SD] CFTV LONGOS - PROBLEMAS EM GERAL", desc) == \
+        ["399", "407", "411", "412", "393", "71", "72", "394"]
 
 
 @pytest.fixture()

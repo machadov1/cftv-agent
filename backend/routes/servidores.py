@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend import digifort, servidores, topologia as topo
+from backend.config import config
 
 router = APIRouter(prefix="/servidores", tags=["servidores"])
 
@@ -43,49 +45,71 @@ def topologia_servidor(ip: str, forcar: bool = False):
             "cameras": cams, "resumo": resumo}
 
 
+class CredIn(BaseModel):
+    usuario: str
+    senha: str
+
+
+class DesabIn(BaseModel):
+    disabled: bool
+
+
+def _cftv(ip: str) -> dict:
+    srv = servidores.servidor_cftv(ip)
+    if not srv:
+        raise HTTPException(status_code=404, detail="IP não está na lista de servidores CFTV")
+    return srv
+
+
+def _estado(leitura: dict | None) -> dict:
+    if not leitura:
+        return {"ok": None, "tipo_erro": None, "erro": None, "cameras": None}
+    if "cameras" in leitura:
+        return {"ok": True, "tipo_erro": None, "erro": None, "cameras": len(leitura["cameras"])}
+    return {"ok": False, "tipo_erro": leitura.get("tipo_erro"), "erro": leitura.get("erro"), "cameras": None}
+
+
 @router.get("/config")
 def config_list():
-    """Lista todos os servidores CFTV com IP, status de desabilitação e credencial customizada."""
-    try:
-        creds = digifort.cred_read()
-    except Exception:
-        creds = {}
-    result = []
-    for srv in servidores.topologia():
-        for s in srv["servidores"]:
+    """Servidores CFTV com IP: desabilitado?, credencial própria (só o usuário, nunca a senha) e resultado da última leitura."""
+    creds, off = digifort.cred_read(), servidores.desabilitados()
+    out = []
+    for u in servidores.topologia():
+        for s in u["servidores"]:
             if s["ip"]:
-                result.append({
-                    "ip": s["ip"],
-                    "nome": s["nome"],
-                    "unidade": srv["unidade"],
-                    "disabled": servidores.is_disabled(s["ip"]),
-                    "credencial_customizada": s["ip"] in creds
-                })
-    return {"servidores": result}
+                out.append({"ip": s["ip"], "nome": s["nome"], "tipo": s["tipo"], "unidade": u["unidade"],
+                            "disabled": s["ip"] in off, "usuario_proprio": (creds.get(s["ip"]) or {}).get("usuario"),
+                            **_estado(topo.ultima_leitura(s["ip"]))})
+    return {"servidores": out, "usuario_padrao": config.DIGIFORT_USER}
 
 
 @router.post("/credencial/{ip}")
-def credencial_set(ip: str, usuario: str, senha: str):
-    """Define credencial customizada para um IP (sobrescreve a padrão do .env)."""
-    if not servidores.servidor_cftv(ip):
-        raise HTTPException(status_code=404, detail="IP não está na lista de servidores CFTV")
-    digifort.cred_set(ip, usuario, senha)
-    return {"ip": ip, "status": "credencial salva"}
+def credencial_set(ip: str, body: CredIn):
+    """Grava a credencial própria do servidor (data/digifort_credenciais.json, fora do git) e já relê o servidor com ela."""
+    _cftv(ip)
+    if not body.usuario.strip() or not body.senha:
+        raise HTTPException(status_code=422, detail="Informe usuário e senha")
+    digifort.cred_set(ip, body.usuario.strip(), body.senha)
+    return {"ip": ip, **_estado(topo.reler_servidor(ip))}
 
 
 @router.delete("/credencial/{ip}")
 def credencial_delete(ip: str):
-    """Remove credencial customizada (volta a usar a padrão do .env)."""
-    if not servidores.servidor_cftv(ip):
-        raise HTTPException(status_code=404, detail="IP não está na lista de servidores CFTV")
+    """Volta a usar a credencial padrão do .env e relê o servidor."""
+    _cftv(ip)
     digifort.cred_delete(ip)
-    return {"ip": ip, "status": "credencial removida"}
+    return {"ip": ip, **_estado(topo.reler_servidor(ip))}
 
 
-@router.patch("/{ip}/desabilitar")
-def desabilitar(ip: str, disabled: bool = True):
-    """Ativa/desativa a visualização de um servidor no mapa de topologia."""
-    if not servidores.servidor_cftv(ip):
-        raise HTTPException(status_code=404, detail="IP não está na lista de servidores CFTV")
-    servidores.set_disabled(ip, disabled)
-    return {"ip": ip, "disabled": disabled, "status": "atualizado"}
+@router.post("/{ip}/reler")
+def reler(ip: str):
+    _cftv(ip)
+    return {"ip": ip, **_estado(topo.reler_servidor(ip))}
+
+
+@router.put("/{ip}/desabilitado")
+def desabilitar(ip: str, body: DesabIn):
+    """Esconde (ou volta a mostrar) o servidor no mapa de topologia; escondido não é lido no Digifort."""
+    _cftv(ip)
+    servidores.set_disabled(ip, body.disabled)
+    return {"ip": ip, "disabled": body.disabled}

@@ -15,7 +15,7 @@ from backend.servicenow_api import sn_api, SNAuthError
 
 router = APIRouter(tags=["camera"])
 EVID = ROOT / "data" / "evidencias"
-MAX_CAMERAS = 4
+MAX_CAMERAS = 12
 
 
 class EscolhaIn(BaseModel):

@@ -268,6 +268,17 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
     note já registrada; respeita dry-run). Snapshot espera até 30 s (a 1ª imagem de uma câmera leva ~6 s).
   - Credenciais em 02/10: Piracicaba CFTV04 e WIN-T23VM0PRR3M recusam a senha (falta entrada em
     `digifort_credenciais.json`); Feira de Santana também.
+  - **Leitura salva do mapa** (`data/topologia_cache.json`, fora do git): o mapa abre sempre na última leitura (0,1 s, mostra
+    "leitura de dd/mm HH:MM", âmbar se > 2 h) e só relê o Digifort em "Atualizar leitura" (~10 s) ou sem leitura salva.
+    Guarda as leituras brutas por IP; o resumo é recalculado a cada abertura (esconder/mostrar servidor vale na hora).
+  - **Configurações › Servidores** (`pages/ServidoresConfigPage.jsx`, `GET /servidores/config`): servidores por unidade com
+    o estado da última leitura (filtro Com falha / Escondidos / Todos). **Senha** própria por servidor
+    (`POST /servidores/credencial/{ip}` grava em `digifort_credenciais.json` e já relê o servidor; a senha nunca volta na
+    lista), "Voltar à padrão", **Reler** um servidor e **Esconder do mapa** (`PUT /servidores/{ip}/desabilitado`,
+    `data/servidores_config.json`): escondido não é lido nem desenhado; unidade sem servidor visível some. O teste de câmera
+    continua procurando em todos os servidores da unidade.
+  - Números puros do mosaico ("Nome do ponto de imagem: 399, 407, 72 394") valem como códigos quando o campo "Número do
+    Objeto" não vem (incidente lido direto do SN). O teste vai até 12 câmeras por incidente (`MAX_CAMERAS`).
 - **Navegação** (`App.jsx`, `Header.jsx`, `components/Secoes.jsx`): abas Operação · Câmeras e servidores · Backlog (sub-abas
   Backlog | Tasks). No cabeçalho: botão **IA** (magenta, lâmpada = 9router ligado) abre o Agente; célula de **métricas** (barras
   de despachos dos últimos 7 dias, `GET /metrics/serie`, + % auto) abre Métricas (com a faixa de KPIs no topo);

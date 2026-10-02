@@ -43,6 +43,8 @@ data/servidores.csv
 data/evidencias/
 data/digifort_cache.json
 data/digifort_credenciais.json
+data/topologia_cache.json
+data/servidores_config.json
 
 # Build
 dashboard/dist/

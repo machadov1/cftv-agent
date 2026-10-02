@@ -77,7 +77,12 @@ def extract_codes(short: str, description: str) -> list[str]:
     """Códigos de câmera: campos estruturados do formulário > título > corpo da descrição > números soltos."""
     d = description or ""
     campos = re.findall(r"(?:C[óo]digo do equipamento|Nome do ponto de imagem[^:\n]*)\s*:\s*([^\r\n]+)", d, re.I)
-    cods = _codes(" ".join(campos)) or _codes(short) or _codes(relevant_text(d))
+    cods = _codes(" ".join(campos))
+    if cods:
+        return cods
+    # "Nome do ponto de imagem: 399, 407, 72 394": a numeração do mosaico, sem prefixo
+    nums = [n for c in campos if re.fullmatch(r"(?:\d{1,4}|[\s,;/]+|\be\b)+", c.strip()) for n in field_codes(c)]
+    cods = list(dict.fromkeys(nums)) or _codes(short) or _codes(relevant_text(d))
     if cods:
         return cods
     m = re.search(r"c[âa]meras?\s+((?:\d{1,3}\s*(?:,|/|\be\b)?\s*)+)", f"{short} {relevant_text(d)}", re.I)
@@ -87,9 +92,10 @@ def extract_codes(short: str, description: str) -> list[str]:
 def field_codes(valor: str | None) -> list[str]:
     """Códigos do campo 'Número do Objeto' (um ou vários separados por , / e).
     "MDE 011, 001" herda o prefixo (MDE-011, MDE-001); frase ("Câmeras sem conexão RES027 RES028") vale pelos códigos citados."""
-    partes = [p for p in re.split(r"\s*(?:,|/|;|\be\b)\s*", (valor or "").strip()) if p]
-    if partes and all(re.fullmatch(r"\d{1,4}", p) for p in partes):  # "209 e 177": numeração pura
-        return list(dict.fromkeys(partes))
+    v = (valor or "").strip()
+    if re.fullmatch(r"(?:\d{1,4}|[\s,;/]+|\be\b)+", v):  # "209 e 177", "71, 72 394": numeração pura
+        return list(dict.fromkeys(re.findall(r"\d{1,4}", v)))
+    partes = [p for p in re.split(r"\s*(?:,|/|;|\be\b)\s*", v) if p]
     cods, prefixo = [], None
     for p in partes:
         m = re.fullmatch(r"([A-Za-z]{2,6})\s+(\d{1,4})", p)

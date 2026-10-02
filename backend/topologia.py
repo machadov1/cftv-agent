@@ -4,6 +4,7 @@ Disponibilidade = câmeras transmitindo / câmeras ativas (desativadas no cadast
 em mais de um servidor (principal + reserva) conta uma vez, com o melhor estado entre as cópias.
 """
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -11,8 +12,7 @@ from backend import digifort, servidores
 from backend.config import ROOT
 
 PARALELO = 8  # servidores lidos ao mesmo tempo (um por vez por servidor)
-CACHE_TTL = 600  # 10 min em segundos
-CACHE_PATH = ROOT / "data" / "topologia_cache.json"
+CACHE_PATH = ROOT / "data" / "topologia_cache.json"  # última leitura de todos os servidores (fora do git)
 
 
 def _pct(ok: int, ativas: int) -> float | None:
@@ -56,63 +56,80 @@ def resumir(unidades: list[dict], leituras: dict[str, dict]) -> list[dict]:
     return out
 
 
-def _cache_read() -> dict | None:
-    """Lê cache persistente se ainda válido (< 10 min)."""
-    if not CACHE_PATH.exists():
+_snap_lock = threading.Lock()
+
+
+def _snap_read() -> dict | None:
+    """Última leitura salva: {'lido_em': epoch, 'leituras': {ip: ...}}. Não expira: só relê quando você pede."""
+    try:
+        data = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data.get("leituras"), dict) else None
+    except (OSError, ValueError):
         return None
-    try:
-        with open(CACHE_PATH) as f:
-            data = json.load(f)
-        if time.time() - data.get("lido_em", 0) < CACHE_TTL:
-            return data
-    except Exception:
-        pass
-    return None
 
 
-def _cache_write(data: dict) -> None:
-    """Grava cache persistente com timestamp."""
-    data["lido_em"] = time.time()
+def _snap_write(leituras: dict, lido_em: float) -> None:
     try:
-        with open(CACHE_PATH, "w") as f:
-            json.dump(data, f)
-    except Exception:
+        CACHE_PATH.write_text(json.dumps({"lido_em": lido_em, "leituras": leituras}, ensure_ascii=False), encoding="utf-8")
+    except OSError:
         pass
+
+
+def _ler(ip: str, forcar: bool) -> dict:
+    try:
+        inv = digifort.inventario(ip, forcar=forcar)
+        return {"cameras": inv["cameras"], "lido_em": inv["lido_em"]}
+    except digifort.DigifortError as e:
+        return {"erro": str(e), "tipo_erro": e.tipo}
+
+
+def _visiveis() -> list[dict]:
+    """Unidades da lista sem os servidores desabilitados (unidade que fica vazia some do mapa)."""
+    off = servidores.desabilitados()
+    out = []
+    for u in servidores.topologia():
+        srv = [s for s in u["servidores"] if not (s["ip"] and s["ip"] in off)]
+        if srv:
+            out.append({**u, "servidores": srv})
+    return out
+
+
+def montar(leituras: dict, lido_em: float | None) -> dict:
+    res = resumir(_visiveis(), leituras)
+    todas = [u["cameras"] for u in res]
+    ativas, ok = sum(c["ativas"] for c in todas), sum(c["ok"] for c in todas)
+    return {"unidades": res, "digifort_configurado": digifort.configured(), "lido_em": lido_em,
+            "geral": {"disponibilidade": _pct(ok, ativas), "ativas": ativas, "ok": ok,
+                      "servidores_total": sum(u["servidores_total"] for u in res),
+                      "servidores_respondendo": sum(u["servidores_respondendo"] for u in res)}}
 
 
 def ler_todos(forcar: bool = False) -> dict:
-    """Lê (em paralelo, com o cache do inventário) todos os servidores CFTV com IP e devolve o mapa resumido.
-    Usa cache persistente se < 10 min (a menos que forcar=True)."""
-    # Tenta cache persistente
-    if not forcar:
-        cached = _cache_read()
-        if cached:
-            cached["cache"] = True  # marca que veio do cache
-            return cached
-
-    unidades = servidores.topologia()
-    ips = sorted({s["ip"] for u in unidades for s in u["servidores"] if s["ip"] and not servidores.is_disabled(s["ip"])})
-
-    def ler(ip):
-        try:
-            inv = digifort.inventario(ip, forcar=forcar)
-            return ip, {"cameras": inv["cameras"], "lido_em": inv["lido_em"]}
-        except digifort.DigifortError as e:
-            return ip, {"erro": str(e), "tipo_erro": e.tipo}
-
+    """Mapa resumido. Sem forcar devolve a última leitura salva (instantâneo, mesmo antiga); só lê o Digifort
+    (8 servidores em paralelo) quando não há leitura salva ou com forcar=True."""
+    snap = None if forcar else _snap_read()
+    if snap:
+        return montar(snap["leituras"], snap["lido_em"])
+    ips = sorted({s["ip"] for u in _visiveis() for s in u["servidores"] if s["ip"]})
     leituras = {}
     if digifort.configured() and ips:
         with ThreadPoolExecutor(max_workers=PARALELO) as ex:
-            leituras = dict(ex.map(ler, ips))
-    res = resumir(unidades, leituras)
-    todas = [u["cameras"] for u in res]
-    ativas, ok = sum(c["ativas"] for c in todas), sum(c["ok"] for c in todas)
+            leituras = dict(zip(ips, ex.map(lambda ip: _ler(ip, forcar), ips)))
+    agora = time.time()
+    with _snap_lock:
+        _snap_write(leituras, agora)
+    return montar(leituras, agora)
 
-    result = {"unidades": res, "digifort_configurado": digifort.configured(),
-              "geral": {"disponibilidade": _pct(ok, ativas), "ativas": ativas, "ok": ok,
-                        "servidores_total": sum(u["servidores_total"] for u in res),
-                        "servidores_respondendo": sum(u["servidores_respondendo"] for u in res)},
-              "cache": False}
 
-    _cache_write(result)
-    return result
+def reler_servidor(ip: str) -> dict:
+    """Relê um servidor (ex.: depois de trocar a senha) e atualiza só ele na leitura salva."""
+    leitura = _ler(ip, True)
+    with _snap_lock:
+        snap = _snap_read() or {"lido_em": time.time(), "leituras": {}}
+        snap["leituras"][ip] = leitura
+        _snap_write(snap["leituras"], snap["lido_em"])
+    return leitura
+
+
+def ultima_leitura(ip: str) -> dict | None:
+    return ((_snap_read() or {}).get("leituras") or {}).get(ip)

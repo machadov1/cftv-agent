@@ -26,3 +26,13 @@ def _sem_rede_externa(monkeypatch):
     def sem_rede(*a, **k):
         raise AssertionError("teste tentou chamar o Digifort de verdade")
     monkeypatch.setattr(digifort.requests, "get", sem_rede)
+
+
+@pytest.fixture(autouse=True)
+def _arquivos_locais_isolados(tmp_path, monkeypatch):
+    """Leitura salva da topologia, servidores escondidos e credenciais nunca vêm (nem vão) para os arquivos reais de data/."""
+    from backend import digifort, servidores, topologia
+    monkeypatch.setattr(topologia, "CACHE_PATH", tmp_path / "topologia_cache.json")
+    monkeypatch.setattr(servidores, "CONFIG_PATH", tmp_path / "servidores_config.json")
+    monkeypatch.setattr(digifort, "CRED_PATH", tmp_path / "digifort_credenciais.json")
+    digifort._inv.clear()

@@ -248,23 +248,31 @@ export default function TopologiaMapa({ incidentes = [], onTestar }) {
   const g = mapa?.geral;
   const gt = tom(g?.disponibilidade);
   const aberta = aberto && mapa?.unidades.find((u) => u.unidade === aberto.u);
-  const cacheInfo = mapa?.cache ? ' (do cache)' : '';
+  const lidoEm = mapa?.lido_em ? new Date(mapa.lido_em * 1000) : null;
+  const idadeMin = lidoEm ? Math.round((Date.now() - lidoEm) / 60000) : null;
+  const lidoTxt = lidoEm ? `leitura de ${lidoEm.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${lidoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '';
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2 border-b-2 border-rule bg-panel px-5 py-3">
         <div>
-          <div className={LABEL}>Rede CFTV · disponibilidade{cacheInfo}</div>
+          <div className={LABEL}>Rede CFTV · disponibilidade</div>
           <div className={`font-display text-4xl font-extrabold leading-none tabular-nums ${TXT[gt]}`}>{lendo && !g ? '…' : pct(g?.disponibilidade)}</div>
         </div>
         <div className="font-mono text-[13.75px] leading-relaxed">
           <div>{g ? `${g.ok.toLocaleString('pt-BR')} de ${g.ativas.toLocaleString('pt-BR')} câmeras ativas transmitindo` : 'lendo os servidores…'}</div>
           <div className="text-mute">{g ? `${g.servidores_respondendo} de ${g.servidores_total} servidores respondendo` : ''}</div>
+          {lidoEm && (
+            <div className={idadeMin > 120 ? 'font-bold text-warn' : 'text-mute'}
+              title="O mapa abre na última leitura salva; só relê o Digifort quando você clica em Atualizar leitura">
+              {lendo ? 'atualizando a leitura…' : lidoTxt}
+            </div>
+          )}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="filtrar unidade ou servidor…" className={`${inputClass} w-56`} />
           <Button onClick={() => setOrdem((o) => (o === 'nome' ? 'pior' : 'nome'))}>Ordem: {ordem === 'nome' ? 'A–Z' : 'pior primeiro'}</Button>
-          <Button tone="primary" onClick={() => carregar(true)} disabled={lendo}>{lendo ? 'Lendo…' : 'Forçar releitura'}</Button>
+          <Button tone="primary" onClick={() => carregar(true)} disabled={lendo}>{lendo ? 'Lendo os servidores…' : 'Atualizar leitura'}</Button>
         </div>
         <div className="flex w-full flex-wrap items-center gap-4 font-mono text-[12.5px] text-mute">
           <span className="flex items-center gap-1.5"><span className="inline-block h-1 w-6 bg-ok" />≥ 95%</span>

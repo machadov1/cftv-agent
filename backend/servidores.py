@@ -1,5 +1,6 @@
 """Lista de servidores (export de 'Gestão De Servidores'): só colunas não sensíveis, nunca senhas/chaves."""
 import csv
+import json
 import re
 import unicodedata
 
@@ -125,34 +126,22 @@ def servidor_cftv(ip: str) -> dict | None:
     return next((r for r in _load() if r["ip"] == ip and "cftv" in (r["tipo"] or "").lower()), None)
 
 
+CONFIG_PATH = ROOT / "data" / "servidores_config.json"  # {ip: {"disabled": true}} (fora do git)
+
+
 def config_read() -> dict:
-    """Lê {ip: {disabled: bool}} de data/servidores_config.json, cria vazio se não existir."""
-    import json
-    cfg_path = ROOT / "data" / "servidores_config.json"
-    if cfg_path.exists():
-        with open(cfg_path) as f:
-            return json.load(f)
-    return {}
+    try:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
-def config_write(cfg: dict) -> None:
-    """Grava {ip: {disabled: bool}} em data/servidores_config.json."""
-    import json
-    cfg_path = ROOT / "data" / "servidores_config.json"
-    with open(cfg_path, "w") as f:
-        json.dump(cfg, f, indent=2)
-
-
-def is_disabled(ip: str) -> bool:
-    """Retorna True se o servidor está desabilitado."""
-    cfg = config_read()
-    return cfg.get(ip, {}).get("disabled", False)
+def desabilitados() -> set[str]:
+    """IPs escondidos do mapa de topologia (não são lidos no Digifort)."""
+    return {ip for ip, c in config_read().items() if (c or {}).get("disabled")}
 
 
 def set_disabled(ip: str, disabled: bool) -> None:
-    """Ativa/desativa um servidor."""
     cfg = config_read()
-    if ip not in cfg:
-        cfg[ip] = {}
-    cfg[ip]["disabled"] = disabled
-    config_write(cfg)
+    cfg.setdefault(ip, {})["disabled"] = disabled
+    CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")

@@ -96,4 +96,54 @@ def test_rota_mapa(client, monkeypatch):
     cams = [{"nome": "A", "descricao": "", "grupo": "", "active": True, "working": True, "inactive_s": 0}]
     monkeypatch.setattr(digifort, "inventario", lambda ip, forcar=False: {"ip": ip, "lido_em": "x", "cameras": cams})
     r = client.get("/servidores/topologia/mapa").json()
-    assert r["geral"]["disponibilidade"] == 100.0 and r["geral"]["servidores_respondendo"] == 3
+    assert r["geral"]["disponibilidade"] == 100.0 and r["geral"]["servidores_respondendo"] == 3 and r["lido_em"]
+
+
+def test_mapa_abre_na_leitura_salva_e_so_rele_quando_pede(client, monkeypatch):
+    lidos = []
+
+    def inv(ip, forcar=False):
+        lidos.append(ip)
+        return {"ip": ip, "lido_em": "x", "cameras": [{"nome": "A", "active": True, "working": True}]}
+    monkeypatch.setattr(digifort, "inventario", inv)
+    primeira = client.get("/servidores/topologia/mapa").json()
+    assert len(lidos) == 3
+    segunda = client.get("/servidores/topologia/mapa").json()
+    assert len(lidos) == 3 and segunda["lido_em"] == primeira["lido_em"]  # sem nova leitura ao reabrir
+    client.get("/servidores/topologia/mapa?forcar=true")
+    assert len(lidos) == 6
+
+
+def test_servidor_escondido_some_do_mapa_e_nao_e_lido(client, monkeypatch):
+    lidos = []
+
+    def inv(ip, forcar=False):
+        lidos.append(ip)
+        return {"ip": ip, "lido_em": "x", "cameras": []}
+    monkeypatch.setattr(digifort, "inventario", inv)
+    assert client.put("/servidores/10.2.0.1/desabilitado", json={"disabled": True}).json()["disabled"] is True
+    r = client.get("/servidores/topologia/mapa?forcar=true").json()
+    assert "10.2.0.1" not in lidos and [u["unidade"] for u in r["unidades"]] == ["Pecém"]  # Barra Mansa ficou vazia
+    cfg = {s["ip"]: s for s in client.get("/servidores/config").json()["servidores"]}
+    assert cfg["10.2.0.1"]["disabled"] and not cfg["10.1.0.1"]["disabled"]
+    client.put("/servidores/10.2.0.1/desabilitado", json={"disabled": False})
+    assert len(client.get("/servidores/topologia/mapa").json()["unidades"]) == 2  # volta sem precisar reler tudo
+
+
+def test_senha_propria_grava_rele_e_nao_volta_na_lista(client, monkeypatch):
+    def inv(ip, forcar=False):
+        if digifort._cred(ip)[1] != "certa":
+            raise digifort.DigifortError(f"{ip}: usuário/senha recusados", "credencial")
+        return {"ip": ip, "lido_em": "x", "cameras": [{"nome": "A", "active": True, "working": True}]}
+    monkeypatch.setattr(digifort, "inventario", inv)
+    client.get("/servidores/topologia/mapa")
+    assert client.post("/servidores/credencial/10.1.0.1", json={"usuario": "adm", "senha": "errada"}).json()["tipo_erro"] == "credencial"
+    r = client.post("/servidores/credencial/10.1.0.1", json={"usuario": "adm", "senha": "certa"}).json()
+    assert r["ok"] is True and r["cameras"] == 1
+    lista = client.get("/servidores/config")
+    srv = {s["ip"]: s for s in lista.json()["servidores"]}["10.1.0.1"]
+    assert srv["usuario_proprio"] == "adm" and srv["ok"] is True and "certa" not in lista.text
+    mapa = client.get("/servidores/topologia/mapa").json()  # a leitura salva já tem o servidor corrigido
+    pec = next(u for u in mapa["unidades"] if u["unidade"] == "Pecém")
+    assert pec["servidores"][0]["ok"] is True
+    assert client.delete("/servidores/credencial/10.1.0.1").json()["ok"] is False  # volta à padrão (recusada)

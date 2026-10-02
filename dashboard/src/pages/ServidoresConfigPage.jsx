@@ -1,168 +1,167 @@
-import { useEffect, useState } from 'react';
-import { getServidoresConfig, setCredencial, deleteCredencial, setDesabilitado } from '../api';
-import { Button, inputClass } from '../components/ui';
+import { useEffect, useMemo, useState } from 'react';
+import { deleteCredencial, getServidoresConfig, relerServidor, setCredencial, setDesabilitado } from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { Badge, Button, inputClass, unitColor } from '../components/ui';
 
-export default function ServidoresConfigPage() {
-  const [servidores, setServidores] = useState([]);
-  const [lendo, setLendo] = useState(true);
-  const [erro, setErro] = useState(null);
-  const [editandoIp, setEditandoIp] = useState(null);
-  const [usuario, setUsuario] = useState('');
+const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
+const ERRO = { credencial: 'senha recusada', timeout: 'porta não atende', lento: 'servidor lento', rede: 'conexão recusada',
+  config: 'Digifort não configurado', resposta: 'resposta inesperada' };
+const fold = (s) => (s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function Estado({ s }) {
+  if (s.disabled) return <Badge tone="mute">escondido</Badge>;
+  if (s.ok === true) return <Badge tone="ok">ok · {s.cameras} câm.</Badge>;
+  if (s.ok === false) return <Badge tone="bad" title={s.erro}>{ERRO[s.tipo_erro] ?? 'falha'}</Badge>;
+  return <Badge tone="mute">não lido</Badge>;
+}
+
+function Linha({ s, padrao, onAtualizar }) {
+  const [aberto, setAberto] = useState(false);
+  const [usuario, setUsuario] = useState(s.usuario_proprio || padrao || '');
   const [senha, setSenha] = useState('');
-  const [salvando, setSalvando] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState(null);
 
-  useEffect(() => {
-    carregarConfig();
-  }, []);
-
-  const carregarConfig = async () => {
-    setLendo(true);
-    setErro(null);
+  const rodar = async (qual, fn) => {
+    setBusy(qual); setMsg(null);
     try {
-      const data = await getServidoresConfig();
-      setServidores(data.servidores);
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setLendo(false);
-    }
+      const r = await fn();
+      if (r && 'ok' in r) setMsg(r.ok ? { ok: true, t: `respondeu · ${r.cameras} câmeras` } : { ok: false, t: r.erro || 'falhou' });
+      onAtualizar(s.ip, r);
+      return r;
+    } catch (e) { setMsg({ ok: false, t: e.message }); return null; } finally { setBusy(null); }
   };
-
-  const handleSalvarCredencial = async (ip) => {
-    if (!usuario.trim() || !senha.trim()) {
-      setErro('Usuário e senha são obrigatórios');
-      return;
-    }
-    setSalvando(true);
-    try {
-      await setCredencial(ip, usuario, senha);
-      setEditandoIp(null);
-      setUsuario('');
-      setSenha('');
-      await carregarConfig();
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setSalvando(false);
-    }
+  const salvar = async () => {
+    const r = await rodar('salvar', () => setCredencial(s.ip, usuario, senha));
+    if (r?.ok) { setSenha(''); setAberto(false); }
   };
-
-  const handleRemoverCredencial = async (ip) => {
-    if (!confirm('Remover credencial customizada?')) return;
-    setSalvando(true);
-    try {
-      await deleteCredencial(ip);
-      setEditandoIp(null);
-      setUsuario('');
-      setSenha('');
-      await carregarConfig();
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const handleToggleDesabilitado = async (ip, disabled) => {
-    setSalvando(true);
-    try {
-      await setDesabilitado(ip, !disabled);
-      await carregarConfig();
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  if (lendo) return <div className="p-6 font-mono text-mute">carregando…</div>;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl">
-      <div>
-        <h2 className="text-lg font-bold mb-2">Gerenciamento de Servidores CFTV</h2>
-        <p className="text-sm text-mute">Configure credenciais customizadas e desabilite servidores no mapa de topologia.</p>
+    <div className={`border-b border-line ${s.disabled ? 'opacity-60' : ''}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2">
+        <div className="min-w-[13rem] flex-1">
+          <div className="font-mono text-[13.75px] font-bold">{s.nome}</div>
+          <div className="font-mono text-[12.5px] text-mute">{s.ip} · {s.tipo}</div>
+        </div>
+        <Estado s={s} />
+        <span className="w-44 font-mono text-[12.5px] text-mute" title="Credencial usada para ler este servidor">
+          {s.usuario_proprio ? <span className="font-bold text-ink">própria · {s.usuario_proprio}</span> : 'padrão do .env'}
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <Button onClick={() => setAberto((v) => !v)} disabled={!!busy}>{aberto ? 'Fechar' : 'Senha'}</Button>
+          <Button onClick={() => rodar('reler', () => relerServidor(s.ip))} disabled={!!busy || s.disabled}>
+            {busy === 'reler' ? 'Lendo…' : 'Reler'}
+          </Button>
+          <Button onClick={() => rodar('mapa', () => setDesabilitado(s.ip, !s.disabled))} disabled={!!busy}
+            title={s.disabled ? 'Voltar a mostrar e ler este servidor no mapa' : 'Esconder do mapa (não é mais lido no Digifort)'}>
+            {s.disabled ? 'Mostrar no mapa' : 'Esconder do mapa'}
+          </Button>
+        </div>
       </div>
-
-      {erro && <div className="bg-bad/10 border-2 border-bad text-bad p-3 font-mono text-sm">{erro}</div>}
-
-      {servidores.length === 0 ? (
-        <p className="text-mute">Nenhum servidor CFTV encontrado.</p>
-      ) : (
-        <div className="border-2 border-rule bg-panel overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b-2 border-rule bg-panel2">
-                <th className="text-left px-4 py-2 font-bold">IP</th>
-                <th className="text-left px-4 py-2 font-bold">Servidor</th>
-                <th className="text-left px-4 py-2 font-bold">Unidade</th>
-                <th className="text-center px-4 py-2 font-bold">Credencial</th>
-                <th className="text-center px-4 py-2 font-bold">Desabilitado</th>
-                <th className="text-center px-4 py-2 font-bold">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {servidores.map((srv, idx) => (
-                <tr key={srv.ip} className={idx % 2 === 0 ? '' : 'bg-panel2'} >
-                  <td className="px-4 py-3 font-mono text-[12.5px]">{srv.ip}</td>
-                  <td className="px-4 py-3 font-mono text-[12.5px]">{srv.nome}</td>
-                  <td className="px-4 py-3 text-[12.5px]">{srv.unidade}</td>
-                  <td className="px-4 py-3 text-center">
-                    {srv.credencial_customizada ? (
-                      <span className="inline-block px-2 py-1 bg-ok/20 text-ok font-bold text-[11.25px]">customizada</span>
-                    ) : (
-                      <span className="text-mute text-[11.25px]">padrão</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <input type="checkbox" checked={srv.disabled} onChange={() => handleToggleDesabilitado(srv.ip, srv.disabled)}
-                      className="h-4 w-4 cursor-pointer" disabled={salvando} />
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {editandoIp === srv.ip ? (
-                      <div className="flex flex-col gap-2">
-                        <input value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="usuário"
-                          className={inputClass} disabled={salvando} />
-                        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="senha"
-                          className={inputClass} disabled={salvando} />
-                        <div className="flex gap-1">
-                          <button onClick={() => handleSalvarCredencial(srv.ip)} disabled={salvando} className="text-xs font-bold px-2 py-1 bg-ok text-ink hover:bg-ok/85">
-                            {salvando ? 'salvando…' : 'salvar'}
-                          </button>
-                          <button onClick={() => setEditandoIp(null)} disabled={salvando} className="text-xs font-bold px-2 py-1 bg-mute text-ink hover:bg-mute/85">
-                            cancelar
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-1 justify-center">
-                        <button onClick={() => { setEditandoIp(srv.ip); setUsuario(''); setSenha(''); }}
-                          className="text-xs font-bold px-2 py-1 bg-panel2 border border-rule hover:bg-rule/20">
-                          {srv.credencial_customizada ? 'editar' : 'adicionar'}
-                        </button>
-                        {srv.credencial_customizada && (
-                          <button onClick={() => handleRemoverCredencial(srv.ip)} disabled={salvando}
-                            className="text-xs font-bold px-2 py-1 bg-bad/20 text-bad hover:bg-bad/30">
-                            remover
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {(s.ok === false && !s.disabled && s.erro) && !msg && (
+        <div className="px-4 pb-2 font-mono text-[12.5px] text-bad">{s.erro}</div>
+      )}
+      {msg && <div className={`px-4 pb-2 font-mono text-[12.5px] font-bold ${msg.ok ? 'text-ok' : 'text-bad'}`}>{msg.t}</div>}
+      {aberto && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-line bg-panel2 px-4 py-3">
+          <label className="w-48">
+            <span className={LABEL}>Usuário</span>
+            <input className={`${inputClass} mt-1 font-mono`} value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="off" />
+          </label>
+          <label className="w-48">
+            <span className={LABEL}>Senha</span>
+            <input type="password" className={`${inputClass} mt-1 font-mono`} value={senha} onChange={(e) => setSenha(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && usuario.trim() && senha && salvar()} autoComplete="new-password" />
+          </label>
+          <Button tone="primary" onClick={salvar} disabled={!!busy || !usuario.trim() || !senha}>
+            {busy === 'salvar' ? 'Testando…' : 'Salvar e testar'}
+          </Button>
+          {s.usuario_proprio && (
+            <Button onClick={() => rodar('padrao', () => deleteCredencial(s.ip))} disabled={!!busy}>Voltar à padrão</Button>
+          )}
+          <span className="font-mono text-[12.5px] text-mute">Fica só nesta máquina (data/digifort_credenciais.json, fora do git).</span>
         </div>
       )}
+    </div>
+  );
+}
 
-      <div className="text-xs text-mute font-mono leading-relaxed">
-        <p className="font-bold mb-1">Legenda:</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li><strong>Credencial customizada:</strong> senha específica para este servidor (sobrescreve a padrão do .env)</li>
-          <li><strong>Desabilitado:</strong> servidor não aparecerá no mapa de topologia</li>
-          <li>Deixe em branco para voltar a usar a credencial padrão do .env</li>
-        </ul>
+// Servidores CFTV: senha própria por servidor, reler um só e esconder do mapa os que não interessam.
+export default function ServidoresConfigPage() {
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState(null);
+  const [filtro, setFiltro] = useState('falha');
+  const [q, setQ] = useState('');
+
+  useEffect(() => { getServidoresConfig().then(setDados).catch((e) => setErro(e.message)); }, []);
+
+  const atualizar = (ip, r) => setDados((d) => ({ ...d, servidores: d.servidores.map((s) => {
+    if (s.ip !== ip) return s;
+    if (r && 'disabled' in r && !('ok' in r)) return { ...s, disabled: r.disabled };
+    return { ...s, ok: r.ok, tipo_erro: r.tipo_erro, erro: r.erro, cameras: r.cameras,
+      usuario_proprio: r.usuario_proprio !== undefined ? r.usuario_proprio : s.usuario_proprio };
+  }) }));
+
+  // a lista volta do servidor depois de trocar a senha (usuário próprio atualizado)
+  const recarregar = () => getServidoresConfig().then(setDados).catch(() => {});
+
+  const lista = dados?.servidores ?? [];
+  const cont = {
+    todos: lista.length,
+    falha: lista.filter((s) => !s.disabled && s.ok === false).length,
+    escondidos: lista.filter((s) => s.disabled).length,
+  };
+  const grupos = useMemo(() => {
+    const f = fold(q);
+    const vis = lista.filter((s) => (filtro === 'todos' || (filtro === 'falha' ? !s.disabled && s.ok === false : s.disabled))
+      && (!f || fold(`${s.nome} ${s.ip} ${s.unidade}`).includes(f)));
+    const g = {};
+    vis.forEach((s) => { (g[s.unidade] ||= []).push(s); });
+    return Object.entries(g);
+  }, [lista, filtro, q]);
+
+  if (erro) return <p className="p-4 font-bold text-bad">{erro}</p>;
+  if (!dados) return <LoadingSpinner />;
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="flex flex-wrap items-center gap-3 border-b-2 border-rule bg-panel px-4 py-3">
+        <div className="mr-auto">
+          <div className="font-display text-2xl font-extrabold uppercase leading-none">Servidores CFTV</div>
+          <p className="mt-1 text-xs text-mute">
+            Senha própria para quem recusa a padrão ({dados.usuario_padrao || 'sem usuário no .env'}), reler um servidor e esconder do
+            mapa os que não precisam aparecer. O estado é o da última leitura do mapa.
+          </p>
+        </div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="filtrar nome, IP ou unidade…" className={`${inputClass} w-60`} />
+        <div className="flex">
+          {[['falha', 'Com falha'], ['escondidos', 'Escondidos'], ['todos', 'Todos']].map(([id, rot]) => (
+            <button key={id} onClick={() => setFiltro(id)}
+              className={`border-2 border-rule px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wide -ml-0.5 first:ml-0 ${filtro === id ? 'bg-invert text-invert-ink' : 'bg-panel text-ink hover:bg-panel2'}`}>
+              {rot} · {cont[id]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4 p-4">
+        {grupos.length === 0 && (
+          <p className="font-mono text-[13.75px] text-mute">
+            {filtro === 'falha' ? 'Nenhum servidor com falha na última leitura.' : filtro === 'escondidos' ? 'Nenhum servidor escondido.' : 'Nenhum servidor.'}
+          </p>
+        )}
+        {grupos.map(([unidade, srv]) => (
+          <section key={unidade} className="border-2 border-rule bg-panel">
+            <header className="border-b-2 border-rule px-4 py-2 font-display text-lg font-extrabold uppercase leading-none"
+              style={{ borderLeft: `8px solid ${unitColor(unidade)}` }}>
+              {unidade}
+            </header>
+            {srv.map((s) => (
+              <Linha key={s.ip} s={s} padrao={dados.usuario_padrao}
+                onAtualizar={(ip, r) => { atualizar(ip, r); if (r && 'ok' in r) recarregar(); }} />
+            ))}
+          </section>
+        ))}
       </div>
     </div>
   );
