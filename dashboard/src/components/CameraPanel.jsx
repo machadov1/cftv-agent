@@ -26,10 +26,10 @@ export default function CameraPanel({ number, hint, bare = false }) {
     setRes(null); setAtt(null); setErr(null); setNota(null); setNotaRes(null); setPrecisaLoc(false); setLoc('');
   }, [number]);
 
-  const check = async () => {
+  const check = async (escolha = null) => {
     setBusy(true); setErr(null); setAtt(null); setNota(null); setNotaRes(null); setDebug([]);
     try {
-      const r = await cameraCheck(number, loc);
+      const r = await cameraCheck(number, loc, escolha);
       setRes(r); setStamp(Date.now()); setPrecisaLoc(false); setDebug(r.debug || []);
     } catch (e) {
       setErr(e.message); setRes(null);
@@ -66,7 +66,7 @@ export default function CameraPanel({ number, hint, bare = false }) {
           Teste de câmera · Digifort
           {hint && <span className="ml-2 text-ink">{hint}</span>}
         </div>
-        <Button onClick={check} disabled={busy || !number || (precisaLoc && !loc)}>
+        <Button onClick={() => check()} disabled={busy || !number || (precisaLoc && !loc)}>
           {busy && !res ? 'Consultando…' : precisaLoc ? 'Testar nesta unidade' : 'Testar câmera'}
         </Button>
       </div>
@@ -110,8 +110,27 @@ export default function CameraPanel({ number, hint, bare = false }) {
           {c.active === false && <div className="font-bold text-warn">Desativada no cadastro do Digifort</div>}
           {c.active !== false && c.working === false && <div className="font-bold text-bad">Sem sinal{c.inactive_s ? ` há ${dur(c.inactive_s)}` : ''}</div>}
           {c.erro && <div className={c.snapshot ? 'text-warn' : 'text-bad'}>{c.erro}</div>}
-          {c.candidatas?.length > 1 && (
-            <div className="font-mono text-[13.75px] text-mute">candidatas: {c.candidatas.map((x) => x.nome).join(', ')}</div>
+          {!c.achada && c.candidatas?.length > 0 && (
+            <div className="mt-1.5">
+              <div className={LABEL}>{c.texto_livre ? 'Câmeras que combinam com a descrição' : 'Nomes parecidos no Digifort'} · escolha a certa</div>
+              <ul className="mt-1 border border-line">
+                {c.candidatas.map((x) => (
+                  <li key={`${x.ip}-${x.nome}`} className="flex items-center gap-2 border-b border-line px-2 py-1 last:border-b-0">
+                    <span className={`h-2.5 w-2.5 shrink-0 ${x.active === false ? 'bg-mute' : x.working === false ? 'bg-bad' : x.working ? 'bg-ok' : 'border-2 border-mute'}`}
+                      title={x.active === false ? 'desativada' : x.working === false ? 'sem sinal' : x.working ? 'transmitindo' : 'sem estado'} />
+                    <span className="min-w-0 flex-1">
+                      <span className="font-mono font-bold">{x.nome}</span>
+                      {x.descricao && <span className="text-mute"> · {x.descricao}</span>}
+                      <span className="block font-mono text-[12.5px] text-mute">{x.servidor}</span>
+                    </span>
+                    <span className={`font-mono text-[12.5px] font-bold ${x.pontos >= 90 ? 'text-ok' : x.pontos >= 70 ? 'text-warn' : 'text-mute'}`}
+                      title="Semelhança com o que o incidente cita">{x.pontos}%</span>
+                    <Button onClick={() => check({ consulta: c.codigo, ip: x.ip, nome: x.nome })} disabled={busy}>Testar esta</Button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 font-mono text-[12.5px] text-mute">A escolha fica lembrada: da próxima vez este código vai direto nela.</p>
+            </div>
           )}
           {c.erros_servidores?.length > 0 && !c.achada && (
             <details className="mt-1 font-mono text-[12.5px] text-mute">

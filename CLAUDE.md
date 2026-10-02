@@ -239,11 +239,33 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
   (`{"10.58.8.27": {"usuario": "", "senha": ""}}`, fora do git). Nunca lida das colunas de senha da planilha.
   Docs da API em `API-DIGIFORT/` (porta 8601). Servidores 7.3 (API 1.9.1) ignoram a marca d'água nativa: a faixa com a hora do
   servidor é desenhada por nós (Pillow) abaixo da imagem; a data de 2000 no vídeo é gravada pela própria câmera.
-- **Aba Câmeras** (`pages/CameraPage.jsx`, `components/CameraPanel.jsx`): "Testar câmera" vale para incidente da fila local **ou já em
-  andamento** (lido direto do ServiceNow; a unidade vem da regra/campo/prefixo aprendido/grupo, ou você escolhe). Fluxo: testar ->
-  anexar print (segurar) -> work note de encerramento editável (segurar; exige o print anexado, não repete, **não muda estado nem
-  encerra**). Rotas em `routes/camera.py`.
-- **Aprendizado** (`backend/learning.py`, aba Regras > "Sugestões aprendidas"): o código da câmera (campo "Número do Objeto"; vazio,
+- **Busca tolerante de câmera** (`digifort.inventario`/`pontuar`/`candidatas`/`locate`): o solicitante quase nunca escreve o nome
+  exato. Cada servidor da unidade é lido inteiro (2 chamadas: `GetCameras` com Name/Description/Active/Group + `GetStatus`,
+  cache em memória de 10 min; API antiga sem esses campos → refaz só com Name) e comparado localmente: nome igual ignorando
+  separadores e zeros à esquerda (`MDE 11` = `MDE-011`) = 100; prefixo + número contidos = 90; contido = 80; palavras na
+  descrição ("portaria", "balança") 50-75; semelhança de texto. Escolhe sozinha só com **uma** câmera >=90 (mesmo nome em
+  principal e reserva conta como uma; a cópia ativa vence). Fora isso a tela lista as candidatas e "Testar esta" manda
+  `escolha {consulta, ip, nome}` (só servidor da unidade), que fica lembrada em `data/digifort_cache.json`. Texto livre sem
+  código ("câmera da MR4") nunca escolhe sozinho; depois da escolha o incidente passa a usar o nome real (print e nota).
+  Lembrada que está **desativada** (servidor reserva) não encerra a busca: procura a cópia ativa e reaprende.
+  `DigifortError.tipo`: credencial | timeout | rede | config | resposta.
+- **Aba Câmeras e servidores** (`pages/CameraPage.jsx`, `components/CameraPanel.jsx`, `components/Topologia.jsx`): à esquerda
+  **Incidentes** (como antes) ou **Topologia** (unidade → servidores da lista → câmeras; `GET /servidores/topologia` só do CSV,
+  `GET /servidores/topologia/{ip}?forcar=` lê o Digifort só de IP da lista; selo do servidor = câmeras/sem sinal/desativadas ou o
+  motivo da falha; "todas desativadas (reserva?)"; câmera citada num incidente aberto mostra o INC). "Testar câmera" vale para
+  incidente da fila local **ou já em andamento** (lido direto do ServiceNow; a unidade vem da regra/campo/prefixo
+  aprendido/grupo, ou você escolhe). Fluxo: testar -> anexar print (segurar) -> work note de encerramento editável (segurar;
+  exige o print anexado, não repete, **não muda estado nem encerra**). Rotas em `routes/camera.py`.
+  Leitura real em 02/10: Barra Mansa 5/5 servidores ok; Piracicaba: CFTV04 e WIN-T23VM0PRR3M recusam a credencial (falta
+  entrada em `digifort_credenciais.json`), CFTV02 timeout, CFTV03/CFTV08 sem rota.
+- **Navegação** (`App.jsx`, `Header.jsx`, `components/Secoes.jsx`): abas Operação · Câmeras e servidores · Backlog (sub-abas
+  Backlog | Tasks). No cabeçalho: botão **IA** (magenta, lâmpada = 9router ligado) abre o Agente; célula de **métricas** (barras
+  de despachos dos últimos 7 dias, `GET /metrics/serie`, + % auto) abre Métricas (com a faixa de KPIs no topo);
+  engrenagem abre **Configurações** com sub-abas Geral · Regras · Histórico. `go('settings', 'regras')` abre direto a seção.
+- **SLA** (`incidents.due_date`, UTC, gravado na análise e atualizado na reconciliação em lote): cartão e detalhe mostram
+  "aberto 02/10 09:12 · vence …" em horário de Brasília (`ui.dataSN`, `ui.prazoSLA`: vencido ou < 4 h vermelho, hoje/amanhã
+  âmbar). Antes a abertura saía 3 h adiantada (UTC lido como hora local).
+- **Aprendizado** (`backend/learning.py`, Configurações › Regras > "Sugestões aprendidas"): o código da câmera (campo "Número do Objeto"; vazio,
   vale o que o texto cita) é lido na análise e nas buscas seguintes (backfill no sync) e entra no texto das regras. Prefixo
   consistente (ex.: `BM-` -> Barra Mansa, >=2 incidentes, >=80%) vira sugestão de regra; aceitar cria a regra e reavalia os pendentes
   sem destino. **Edição manual**: incidente sem localidade/grupo pode ser despachado escolhendo a fila em Editar (`/rules/destinos`).
@@ -298,7 +320,7 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
   *Agente*: despachos, mediana até despachar, % sem edição/LLM, reanálises e o **retrato diário do backlog** (tabela
   `backlog_diario`, gravado a cada leitura real do backlog; a tendência aparece com 3+ dias). INC clicável: ServiceNow, ou aba
   Câmeras nos cartões de câmera (`App` passa `go(tab, inc)`/`target` às páginas).
-- **Tasks** (aba **Tasks**, `backend/tasks.py`, `GET /tasks`, `pages/TasksPage.jsx`): só visualização, sem automação. Board
+- **Tasks** (sub-aba **Tasks** do Backlog, `backend/tasks.py`, `GET /tasks`, `pages/TasksPage.jsx`): só visualização, sem automação. Board
   "TASKs" do time (vtb `9fd80702…`, tabela `sc_task`, mesmo filtro de filas) restrito às de **acesso a imagens** (itens
   `776d895f…` "Solicitação de Acesso as Imagens – CFTV" e `d2e1e278…` "Digifort", de Pecém). Os dados vêm do texto da tarefa
   (`parse_descricao`: só chaves conhecidas; o resto continua o campo anterior). "Comigo" = `assigned_to.user_name` igual ao

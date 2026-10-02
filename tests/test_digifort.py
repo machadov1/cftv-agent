@@ -14,6 +14,23 @@ def dg(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "DIGIFORT_USER", "svc")
     monkeypatch.setattr(config, "DIGIFORT_PASSWORD", "x")
     monkeypatch.setattr(digifort, "CACHE_PATH", tmp_path / "cache.json")
+    digifort._inv.clear()
+
+
+def mk(nome, descricao="", active=True, working=True):
+    return {"nome": nome, "descricao": descricao, "grupo": "", "active": active, "working": working, "inactive_s": 0}
+
+
+def inv(por_ip, chamadas=None):
+    """Dublê de digifort.inventario: {ip: [câmeras]} ou {ip: DigifortError}."""
+    def fake(ip, forcar=False):
+        if chamadas is not None:
+            chamadas.append(ip)
+        v = por_ip.get(ip, [])
+        if isinstance(v, Exception):
+            raise v
+        return {"ip": ip, "lido_em": "02/10 10:00", "cameras": v}
+    return fake
 
 
 def test_parse_text():
@@ -23,32 +40,118 @@ def test_parse_text():
 
 def test_locate_exato_no_segundo_servidor_e_lembra(dg, monkeypatch):
     chamadas = []
-
-    def fake(ip, mask):
-        chamadas.append((ip, mask))
-        return ["bm-lam-cli-048"] if ip == "10.0.0.3" else []
-    monkeypatch.setattr(digifort, "list_cameras", fake)
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.3": [mk("bm-lam-cli-048")]}, chamadas))
     r = digifort.locate("BM-LAM-CLI-048", SRV)
     assert r["achada"]["ip"] == "10.0.0.3" and r["achada"]["nome"] == "bm-lam-cli-048"
     chamadas.clear()
     digifort.locate("BM-LAM-CLI-048", SRV)
-    assert chamadas[0][0] == "10.0.0.3"  # servidor já conhecido vai na frente
+    assert chamadas == ["10.0.0.3"]  # já confirmada: vai direto ao servidor conhecido e para
 
 
 def test_locate_ambigua_nao_escolhe(dg, monkeypatch):
-    monkeypatch.setattr(digifort, "list_cameras", lambda ip, mask: [f"BM-LAM-CLI-048-{ip[-1]}"])
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048-1")], "10.0.0.3": [mk("BM-LAM-CLI-048-3")]}))
     r = digifort.locate("BM-LAM-CLI-048", SRV)
     assert r["achada"] is None and len(r["candidatas"]) == 2
 
 
 def test_locate_servidor_fora_nao_derruba(dg, monkeypatch):
-    def fake(ip, mask):
-        if ip == "10.0.0.1":
-            raise digifort.DigifortError("sem resposta")
-        return ["BM-LAM-CLI-048"]
-    monkeypatch.setattr(digifort, "list_cameras", fake)
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": digifort.DigifortError("sem resposta", "rede"),
+                                                     "10.0.0.3": [mk("BM-LAM-CLI-048")]}))
     r = digifort.locate("BM-LAM-CLI-048", SRV)
     assert r["achada"]["ip"] == "10.0.0.3" and len(r["erros"]) == 1
+
+
+@pytest.mark.parametrize("consulta, esperado, minimo", [
+    ("MDE 11", "MDE-011", 100),          # separador e zero à esquerda
+    ("mde_011", "MDE-011", 100),
+    ("BM 48", "BM-LAM-CLI-048", 90),      # prefixo + número
+    ("209", "PIR-PORT-209", 90),          # só o número
+    ("câmera da portaria", "PIR-PORT-209", 50),  # palavra da descrição
+    ("balança", "PIR-BAL-010", 50),
+])
+def test_candidatas_tolerantes(consulta, esperado, minimo):
+    cams = [mk("BM-LAM-CLI-048", "Laminação cliente"), mk("PIR-PORT-209", "Portaria principal"), mk("MDE-011"),
+            mk("PIR-BAL-010", "Balança rodoviária")]
+    top = digifort.candidatas(consulta, cams)
+    assert top and top[0]["nome"] == esperado and top[0]["pontos"] >= minimo
+
+
+def test_candidatas_sem_semelhanca_e_limite():
+    cams = [mk(f"PIR-CAM-{i:03d}") for i in range(20)]
+    assert digifort.candidatas("xyz", cams) == []
+    assert len(digifort.candidatas("PIR CAM", cams)) == 5
+
+
+def test_locate_uma_candidata_forte_escolhe_sozinha_e_texto_livre_nao(dg, monkeypatch):
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048"), mk("BM-PORT-001", "Portaria")]}))
+    assert digifort.locate("BM 48", SRV)["achada"]["nome"] == "BM-LAM-CLI-048"
+    livre = digifort.locate("camera da portaria", SRV, automatico=False)
+    assert livre["achada"] is None and livre["candidatas"][0]["nome"] == "BM-PORT-001"
+
+
+def test_inventario_junta_cameras_e_estado_e_usa_cache(dg, monkeypatch):
+    chamadas = []
+
+    class R:
+        status_code = 200
+
+        def __init__(self, text):
+            self.text = text
+
+    def fake_get(ip, path, params=None):
+        chamadas.append(path)
+        if path == "Cameras/GetCameras":
+            return R("RESPONSE_CODE=0\nCOUNT=2\nCAMERA_0_NAME=BM-001\nCAMERA_0_DESCRIPTION=Portaria\nCAMERA_0_ACTIVE=TRUE\n"
+                     "CAMERA_1_NAME=BM-002\nCAMERA_1_ACTIVE=FALSE\n")
+        return R("RESPONSE_CODE=0\nCAMERA_0_NAME=BM-001\nCAMERA_0_WORKING=FALSE\nCAMERA_0_INACTIVETIME=120\n")
+    monkeypatch.setattr(digifort, "_get", fake_get)
+    r = digifort.inventario("10.0.0.1")
+    c1, c2 = r["cameras"]
+    assert (c1["nome"], c1["descricao"], c1["working"], c1["inactive_s"]) == ("BM-001", "Portaria", False, 120)
+    assert c2["active"] is False and c2["working"] is None
+    digifort.inventario("10.0.0.1")
+    assert len(chamadas) == 2  # segunda leitura veio do cache
+    digifort.inventario("10.0.0.1", forcar=True)
+    assert len(chamadas) == 4
+
+
+def test_inventario_api_antiga_refaz_so_com_nome(dg, monkeypatch):
+    pedidos = []
+
+    class R:
+        status_code = 200
+
+        def __init__(self, text):
+            self.text = text
+
+    def fake_get(ip, path, params=None):
+        pedidos.append(params.get("Fields"))
+        if path == "Cameras/GetCameras" and params["Fields"] != "Name":
+            return R("RESPONSE_CODE=6\nRESPONSE_MESSAGE=Invalid field\n")
+        return R("RESPONSE_CODE=0\nCAMERA_0_NAME=BM-001\n")
+    monkeypatch.setattr(digifort, "_get", fake_get)
+    assert digifort.inventario("10.0.0.1")["cameras"][0]["nome"] == "BM-001"
+    assert pedidos[1] == "Name"
+
+
+def test_erro_tem_tipo(dg, monkeypatch):
+    import requests
+
+    class R:
+        status_code = 401
+        text = ""
+        content = b""
+    monkeypatch.setattr(digifort.requests, "get", lambda *a, **k: R())
+    with pytest.raises(digifort.DigifortError) as e:
+        digifort.inventario("10.0.0.1")
+    assert e.value.tipo == "credencial"
+
+    def timeout(*a, **k):
+        raise requests.exceptions.Timeout()
+    monkeypatch.setattr(digifort.requests, "get", timeout)
+    with pytest.raises(digifort.DigifortError) as e:
+        digifort.inventario("10.0.0.2")
+    assert e.value.tipo == "timeout"
 
 
 def test_sem_credencial(monkeypatch):
@@ -78,7 +181,7 @@ def client(tmp_path, monkeypatch, dg):
 
 
 def test_check_volta_e_gera_snapshot_depois_anexa_uma_vez(client, monkeypatch):
-    monkeypatch.setattr(digifort, "list_cameras", lambda ip, mask: ["BM-LAM-CLI-048"])
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048")]}))
     monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": True, "active": True, "inactive_s": 0, "active_s": 50})
     monkeypatch.setattr(digifort, "snapshot", lambda ip, n: b"\xff\xd8" + b"0" * 600)
     r = client.post("/incidents/INC1/camera/check")
@@ -98,7 +201,7 @@ def test_check_volta_e_gera_snapshot_depois_anexa_uma_vez(client, monkeypatch):
 
 
 def test_camera_ainda_fora_nao_gera_snapshot(client, monkeypatch):
-    monkeypatch.setattr(digifort, "list_cameras", lambda ip, mask: ["BM-LAM-CLI-048"])
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048")]}))
     monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": False, "active": True, "inactive_s": 900, "active_s": 0})
     monkeypatch.setattr(digifort, "snapshot", lambda ip, n: pytest.fail("não deveria tirar snapshot"))
     cam = client.post("/incidents/INC1/camera/check").json()["cameras"][0]
@@ -106,12 +209,29 @@ def test_camera_ainda_fora_nao_gera_snapshot(client, monkeypatch):
     assert client.post("/incidents/INC1/camera/attach").status_code == 422
 
 
-def test_codigo_em_texto_livre_e_recusado(client):
-    assert client.post("/incidents/INC2/camera/check").status_code == 422
+def test_texto_livre_sugere_candidatas_e_escolha_e_lembrada(client, monkeypatch):
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-MR4-001", "Moinho MR4"), mk("BM-PORT-001")]}))
+    monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": True, "active": True, "inactive_s": 0, "active_s": 9})
+    monkeypatch.setattr(digifort, "snapshot", lambda ip, n: b"\xff\xd8" + b"0" * 600)
+    r = client.post("/incidents/INC2/camera/check").json()["cameras"][0]
+    assert r["achada"] is None and r["texto_livre"] and r["candidatas"][0]["nome"] == "BM-MR4-001"
+
+    escolha = {"consulta": "camera da MR4", "ip": "10.0.0.1", "nome": "BM-MR4-001"}
+    r = client.post("/incidents/INC2/camera/check", json={"escolha": escolha}).json()["cameras"][0]
+    assert r["snapshot"] and r["codigo"] == "BM-MR4-001" and not r["texto_livre"]
+    # da próxima vez o incidente já usa a câmera confirmada, sem perguntar
+    r = client.post("/incidents/INC2/camera/check").json()["cameras"][0]
+    assert r["achada"]["nome"] == "BM-MR4-001" and r["snapshot"]
+    assert client.get("/incidents/INC2/camera/closing-draft").json()["texto"].count("BM-MR4-001") == 1
+
+
+def test_escolha_de_outra_unidade_e_recusada(client):
+    escolha = {"consulta": "BM-LAM-CLI-048", "ip": "10.9.9.9", "nome": "X"}
+    assert client.post("/incidents/INC1/camera/check", json={"escolha": escolha}).status_code == 422
 
 
 def test_camera_desativada_tem_mensagem_propria(client, monkeypatch):
-    monkeypatch.setattr(digifort, "list_cameras", lambda ip, mask: ["BM-LAM-CLI-048"])
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048")]}))
     monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": False, "active": False, "inactive_s": 0, "active_s": 0})
     cam = client.post("/incidents/INC1/camera/check").json()["cameras"][0]
     assert not cam["snapshot"] and "DESATIVADA" in cam["erro"]
@@ -148,3 +268,18 @@ def test_credencial_por_servidor_sobrepoe_a_padrao(dg, monkeypatch, tmp_path):
     assert digifort._cred("10.0.0.1") == ("svc", "x")          # sem entrada: conta padrão do .env
     monkeypatch.setattr(digifort, "CRED_PATH", tmp_path / "nao_existe.json")
     assert digifort._cred("10.0.0.9") == ("svc", "x")
+
+
+def test_mesma_camera_no_reserva_desativada_escolhe_a_ativa(dg, monkeypatch):
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-ACI-H-001", active=False, working=None)],
+                                                     "10.0.0.3": [mk("BM-ACI-H-001")]}))
+    r = digifort.locate("BM-ACI-H-001", SRV)
+    assert r["achada"]["ip"] == "10.0.0.3"
+
+
+def test_lembrada_no_reserva_desativada_e_reaprendida(dg, monkeypatch):
+    digifort.lembrar("BM-PAT-A-058", {"servidor": "BMA-APP-CFTV01", "ip": "10.0.0.1", "nome": "BM-PAT-A-058"})
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-PAT-A-058", active=False, working=None)],
+                                                     "10.0.0.3": [mk("BM-PAT-A-058")]}))
+    assert digifort.locate("BM-PAT-A-058", SRV)["achada"]["ip"] == "10.0.0.3"
+    assert digifort.lembrada("BM-PAT-A-058")["ip"] == "10.0.0.3"

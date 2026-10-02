@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getSession, sessionLogin } from '../api';
+import { getHealth, getMetrics, getSerie, getSession, sessionLogin } from '../api';
 import { useTheme } from '../lib/theme';
 
 // Régua única: toda célula tem a mesma altura, divisória e tipografia das abas.
@@ -9,6 +9,43 @@ const SUB = 'font-mono text-[11.25px] font-bold uppercase tracking-[0.14em]';
 
 function Lamp({ on, warn }) {
   return <span className={`inline-block h-2.5 w-2.5 border-2 border-current ${on ? 'bg-current' : ''} ${warn ? 'pulse-dot' : ''}`} />;
+}
+
+// Métricas em miniatura: despachos dos últimos 7 dias (barras) + % decidido sem LLM. Clique abre a página completa.
+function MiniMetricas({ ativo, onClick }) {
+  const [serie, setSerie] = useState(null);
+  const [m, setM] = useState(null);
+  useEffect(() => {
+    const load = () => {
+      getSerie(7).then(setSerie).catch(() => setSerie(null));
+      getMetrics().then(setM).catch(() => setM(null));
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
+  const max = Math.max(1, ...(serie ?? []).map((d) => d.despachos));
+  const hoje = serie?.at(-1)?.despachos ?? '—';
+  const dica = serie ? serie.map((d) => `${d.dia.slice(8)}/${d.dia.slice(5, 7)}: ${d.despachos}`).join(' · ') : '';
+  return (
+    <div className={CELL}>
+      <button onClick={onClick} aria-label="Métricas" aria-current={ativo ? 'page' : undefined}
+        title={`Despachos por dia (7 dias): ${dica}. Clique para as métricas completas.`}
+        className={`flex items-center gap-2.5 px-3.5 ${ativo ? 'bg-invert text-invert-ink' : 'text-ink hover:bg-panel2'}`}>
+        <svg viewBox="0 0 70 26" width="70" height="26" aria-hidden="true">
+          {(serie ?? []).map((d, i) => {
+            const h = Math.max(2, Math.round((d.despachos / max) * 24));
+            return <rect key={d.dia} x={i * 10} y={26 - h} width="7" height={h}
+              className={i === serie.length - 1 ? 'fill-accent' : 'fill-current opacity-40'} />;
+          })}
+        </svg>
+        <span className="flex flex-col items-start leading-none">
+          <span className="font-display text-lg font-extrabold">{hoje}</span>
+          <span className={`${SUB} text-[10px]`}>hoje · {m?.automacao_percentual ?? '—'}% auto</span>
+        </span>
+      </button>
+    </div>
+  );
 }
 
 function ServiceNowButton() {
@@ -118,16 +155,30 @@ export default function Header({ tabs, current, onSelect }) {
           <div className={`${CELL} items-center bg-mock px-3.5 ${SUB} text-white`} title="Incidentes fictícios; nada vai ao ServiceNow">mock</div>
         )}
 
-        <div className={`${CELL} flex-col justify-center gap-1 px-3.5 ${SUB}`} aria-label="Estado dos serviços">
+        <div className={`${CELL} items-center px-3.5 ${SUB}`} aria-label="Estado da API">
           <span className={`flex items-center gap-2 ${health === false ? 'text-bad' : apiOk ? 'text-ink' : 'text-mute'}`}>
             <Lamp on={apiOk} warn={health === false} />
             API {health === null ? '…' : apiOk ? 'ok' : 'fora'}
           </span>
-          <span className={`flex items-center gap-2 ${health?.llm_enabled ? 'text-ink' : 'text-mute'}`} title="IA via 9router (só casos difíceis)">
-            <Lamp on={!!health?.llm_enabled} />
-            IA {health?.llm_enabled ? 'on' : 'off'}
-          </span>
         </div>
+
+        <div className={CELL}>
+          <button
+            onClick={() => onSelect('agent')}
+            title={`Agente de IA (pedidos em texto e prints) · 9router ${health?.llm_enabled ? 'ligado' : 'desligado'}`}
+            aria-label="Agente de IA"
+            aria-current={current === 'agent' ? 'page' : undefined}
+            className={`${TAB} ${current === 'agent' ? 'bg-mock text-white' : 'text-mock hover:bg-panel2'}`}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M12 1l2.6 7.4L22 11l-7.4 2.6L12 21l-2.6-7.4L2 11l7.4-2.6z" />
+            </svg>
+            IA
+            <Lamp on={!!health?.llm_enabled} />
+          </button>
+        </div>
+
+        <MiniMetricas ativo={current === 'metrics'} onClick={() => onSelect('metrics')} />
 
         <Clock />
 

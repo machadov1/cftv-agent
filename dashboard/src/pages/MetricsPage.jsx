@@ -4,6 +4,7 @@ import { getBreakdown, getIncidentesVolumetria, getInsights, getPainel } from '.
 import VolumeChart from '../components/VolumeChart';
 import useMetrics from '../hooks/useMetrics';
 import LoadingSpinner from '../components/LoadingSpinner';
+import KpiStrip from '../components/KpiStrip';
 import { Kpi, NO_UNIT_COLOR, Panel, unitColor } from '../components/ui';
 import { useThemeColors } from '../lib/theme';
 
@@ -49,7 +50,7 @@ function Card({ tone = 'ink', value, label, children, className = '', right }) {
 
 function Inc({ n, base, onCamera, title }) {
   const cls = 'border border-line bg-panel2 px-1.5 py-px font-mono text-[12.5px] hover:border-rule hover:bg-invert hover:text-invert-ink';
-  if (onCamera) return <button title={title ?? 'Abrir na aba Câmeras'} onClick={() => onCamera(n)} className={cls}>{n}</button>;
+  if (onCamera) return <button title={title ?? 'Abrir em Câmeras e servidores'} onClick={() => onCamera(n)} className={cls}>{n}</button>;
   return (
     <a title={title ?? 'Abrir no ServiceNow'} className={cls} target="_blank" rel="noreferrer"
       href={`${base}/nav_to.do?uri=${encodeURIComponent(`incident.do?sysparm_query=number=${n}`)}`}>{n}</a>
@@ -117,7 +118,9 @@ export default function MetricsPage({ go }) {
   const tend = agente.tendencia;
 
   return (
-    <div className="grid h-full grid-cols-1 content-start gap-3 overflow-auto p-3 lg:grid-cols-3">
+    <div className="flex h-full flex-col">
+    <KpiStrip />
+    <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-3 overflow-auto p-3 lg:grid-cols-3">
       {p.avisos?.map((a) => (
         <div key={a} className="border-2 border-warn bg-warn/15 px-3 py-2 font-mono text-[13.75px] font-bold text-warn lg:col-span-3">! {a}</div>
       ))}
@@ -162,10 +165,10 @@ export default function MetricsPage({ go }) {
       <Card tone={cam.voltou.length ? 'ok' : 'mute'} value={cam.voltou.length} label="câmera voltou · pode encerrar">
         {cam.voltou.length ? (
           <>
-            <p>O último teste no Digifort deu imagem e ainda não há work note de encerramento. Anexe o print e registre a nota na aba Câmeras.</p>
+            <p>O último teste no Digifort deu imagem e ainda não há work note de encerramento. Anexe o print e registre a nota em Câmeras e servidores.</p>
             <Incs list={cam.voltou.map((x) => x.number)} onCamera={camera} />
           </>
-        ) : <Note>Nenhum teste recente com a câmera de volta. Teste os incidentes em andamento na aba Câmeras.</Note>}
+        ) : <Note>Nenhum teste recente com a câmera de volta. Teste os incidentes em andamento em Câmeras e servidores.</Note>}
         {cam.sem_sinal.length > 0 && (
           <div className="border-t border-line pt-2">
             <div className="font-bold text-warn">{cam.sem_sinal.length} ainda sem sinal no último teste</div>
@@ -220,7 +223,7 @@ export default function MetricsPage({ go }) {
         <p>{agir.sem_destino.fila.length} na fila local (bloqueados para despacho) · {agir.sem_destino.backlog.length} no backlog sem unidade pelas regras.</p>
         {agir.sem_destino.fila.length > 0 && <Incs list={agir.sem_destino.fila} base={base} />}
         {agir.sem_destino.sugestoes.filter((s) => s.resolveria > 0).map((s) => (
-          <p key={s.prefixo} className="font-bold text-accent">Aceitar o prefixo {s.prefixo}- → {s.localidade} resolveria {s.resolveria} agora (aba Regras).</p>
+          <p key={s.prefixo} className="font-bold text-accent">Aceitar o prefixo {s.prefixo}- → {s.localidade} resolveria {s.resolveria} agora{go && <> (<button className="underline" onClick={() => go('settings', 'regras')}>Configurações › Regras</button>)</>}.</p>
         ))}
         {agir.sem_destino.backlog.length > 0 && (
           <Note>No backlog, unidade sem regra (ex.: Belgo Arames) cai aqui: crie a regra para o agente reconhecer da próxima vez.</Note>
@@ -348,6 +351,7 @@ export default function MetricsPage({ go }) {
           <Row key={r.localidade} left={r.localidade} right={r.total} color={r.localidade === 'Sem destino' ? c.bad : unitColor(r.localidade)} />
         ))}
       </Panel>
+    </div>
     </div>
   );
 }

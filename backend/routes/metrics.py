@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.db import get_metrics, get_breakdown, get_insights
+from backend.db import get_metrics, get_breakdown, get_insights, serie_diaria
 from backend.models import MetricsOut
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -8,6 +8,11 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 def get_dashboard_metrics() -> MetricsOut:
     """Retornar métricas do dashboard"""
     return get_metrics()
+
+@router.get("/serie")
+def get_serie(dias: int = 7):
+    """Despachos/análises por dia (gráfico pequeno do cabeçalho). Só o banco local."""
+    return serie_diaria(max(2, min(dias, 31)))
 
 @router.get("/insights")
 def get_metrics_insights():

@@ -35,6 +35,7 @@ export const getHistory = (params = {}) => {
   return request(`/history${qs ? `?${qs}` : ''}`);
 };
 export const getMetrics = () => request('/metrics');
+export const getSerie = (dias = 7) => request(`/metrics/serie?dias=${dias}`);
 export const getBreakdown = () => request('/metrics/breakdown');
 export const getInsights = () => request('/metrics/insights');
 export const getPainel = () => request('/metrics/painel');
@@ -62,8 +63,10 @@ export const pingIncident = (n, host = '') =>
 export const pingEvidenceUrl = (n, t = 0) => `${API}/incidents/${n}/ping/evidencia?t=${t}`;
 export const pingRegistrar = (n) => request(`/incidents/${n}/ping/registrar`, { method: 'POST' });
 
-export const cameraCheck = (n, localidade = '') =>
-  request(`/incidents/${n}/camera/check`, { method: 'POST', body: body({ localidade: localidade || null }) });
+export const cameraCheck = (n, localidade = '', escolha = null) =>
+  request(`/incidents/${n}/camera/check`, { method: 'POST', body: body({ localidade: localidade || null, escolha }) });
+export const getTopologia = () => request('/servidores/topologia');
+export const getTopologiaServidor = (ip, forcar = false) => request(`/servidores/topologia/${ip}${forcar ? '?forcar=true' : ''}`);
 export const cameraClosingDraft = (n) => request(`/incidents/${n}/camera/closing-draft`);
 export const cameraClosingNote = (n, texto) =>
   request(`/incidents/${n}/camera/closing-note`, { method: 'POST', body: body({ texto }) });

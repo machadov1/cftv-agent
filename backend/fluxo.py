@@ -53,7 +53,7 @@ def reconciliar() -> dict:
             continue
         novo = classificar(sn, loc["status"], eu)
         nota = (autores(sn["work_notes"]) or [None])[0]
-        db.set_fluxo(loc["incident_number"], novo, sn["state"], sn["grupo_nome"], nota)
+        db.set_fluxo(loc["incident_number"], novo, sn["state"], sn["grupo_nome"], nota, sn.get("due_date"))
         if novo != loc["status"]:
             mudaram.append((loc["incident_number"], loc["status"], novo))
             db.add_history(loc["incident_number"], "fluxo", f"{loc['status']} → {novo} (SN estado {sn['state']}, "

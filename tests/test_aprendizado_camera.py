@@ -90,7 +90,9 @@ def test_camera_de_incidente_em_andamento_le_do_servicenow(client, monkeypatch):
     monkeypatch.setattr(camera.sn_api, "get_camera_code", lambda sid: "BM-PAT-A-058")
     srv = []
     monkeypatch.setattr(servidores, "cftv_da_unidade", lambda loc: srv.append(loc) or [{"nome": "S1", "ip": "10.0.0.1"}])
-    monkeypatch.setattr(digifort, "list_cameras", lambda ip, mask: ["BM-PAT-A-058"])
+    digifort._inv.clear()
+    monkeypatch.setattr(digifort, "inventario", lambda ip, forcar=False: {"ip": ip, "lido_em": "", "cameras": [
+        {"nome": "BM-PAT-A-058", "descricao": "", "grupo": "", "active": True, "working": True, "inactive_s": 0}]})
     monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": True, "active": True, "inactive_s": 0, "active_s": 9})
     monkeypatch.setattr(digifort, "snapshot", lambda ip, n: b"\xff\xd8" + b"0" * 600)
     r = client.post("/incidents/INC7/camera/check").json()

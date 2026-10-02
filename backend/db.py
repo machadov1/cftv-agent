@@ -48,7 +48,7 @@ def init_db():
                           ("subcategory", "TEXT"), ("u_informal_service", "BOOLEAN DEFAULT 0"),
                           ("camera_codigo", "TEXT"), ("camera_lido_em", "TIMESTAMP"), ("cmdb_ci", "TEXT"),
                           ("pistas", "TEXT"), ("sn_estado", "TEXT"), ("sn_grupo", "TEXT"), ("nota_autor", "TEXT"),
-                          ("saiu_em", "TIMESTAMP")):
+                          ("saiu_em", "TIMESTAMP"), ("due_date", "TEXT")):
             if name not in cols:
                 conn.execute(f"ALTER TABLE incidents ADD COLUMN {name} {ddl}")
         # 'resolvido' (marcava 6/7/8 juntos; 8 = Aguardando Mudança) virou 'encerrado'; a reconciliação reclassifica
@@ -108,8 +108,8 @@ def save_incident(incident_number: str, data: dict, status: str = "analisado"):
         conn.execute("""INSERT INTO incidents
             (incident_number, sys_id, short_description, description, opened_at, caller_id, u_incident_location, localidade,
              localidade_confianca, grupo, grupo_display, ritm_necessaria, categoria, subcategory,
-             pendencia, motivo, u_informal_service, camera_codigo, cmdb_ci, pistas, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             pendencia, motivo, u_informal_service, camera_codigo, cmdb_ci, pistas, status, due_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(incident_number) DO UPDATE SET
                 sys_id=excluded.sys_id,
                 opened_at=excluded.opened_at,
@@ -131,6 +131,7 @@ def save_incident(incident_number: str, data: dict, status: str = "analisado"):
                 camera_lido_em=CASE WHEN excluded.camera_codigo IS NULL THEN camera_lido_em ELSE CURRENT_TIMESTAMP END,
                 cmdb_ci=excluded.cmdb_ci,
                 pistas=excluded.pistas,
+                due_date=COALESCE(NULLIF(excluded.due_date, ''), due_date),
                 -- reanalisar nunca devolve à Entrada o que já saiu (despachado, tratado fora, encerrado)
                 status=CASE WHEN incidents.status IN ('aprovado', 'tratado_fora', 'encerrado')
                             THEN incidents.status ELSE excluded.status END,
@@ -142,7 +143,7 @@ def save_incident(incident_number: str, data: dict, status: str = "analisado"):
              data.get("grupo_display"), bool(data.get("ritm_necessaria")),
              data.get("categoria"), data.get("subcategory"), data.get("pendencia"), data.get("motivo"),
              bool(data.get("u_informal_service")), data.get("camera_codigo"), data.get("cmdb_ci"),
-             json.dumps(data.get("pistas") or [], ensure_ascii=False), status))
+             json.dumps(data.get("pistas") or [], ensure_ascii=False), status, data.get("due_date")))
 
 def set_incident_status(incident_number: str, status: str, fields: dict | None = None):
     fields = {k: v for k, v in (fields or {}).items()
@@ -168,14 +169,16 @@ def get_incident(incident_number: str) -> dict | None:
                            (incident_number,)).fetchone()
     return _inc(row) if row else None
 
-def set_fluxo(incident_number: str, status: str, sn_estado: str, sn_grupo: str, nota_autor: str | None):
-    """Resultado da reconciliação com o ServiceNow (fluxo.reconciliar). Marca a hora em que saiu da Entrada."""
+def set_fluxo(incident_number: str, status: str, sn_estado: str, sn_grupo: str, nota_autor: str | None,
+              due_date: str | None = None):
+    """Resultado da reconciliação com o ServiceNow (fluxo.reconciliar). Marca a hora em que saiu da Entrada.
+    due_date (vencimento do SLA, UTC) acompanha o ServiceNow: muda quando a fila/prioridade muda."""
     with _conn() as conn:
         conn.execute("""UPDATE incidents SET
                           saiu_em=CASE WHEN status='analisado' AND ? <> 'analisado' THEN CURRENT_TIMESTAMP ELSE saiu_em END,
-                          status=?, sn_estado=?, sn_grupo=?, nota_autor=?
+                          status=?, sn_estado=?, sn_grupo=?, nota_autor=?, due_date=COALESCE(NULLIF(?, ''), due_date)
                         WHERE incident_number=?""",
-                     (status, status, sn_estado, sn_grupo, nota_autor, incident_number))
+                     (status, status, sn_estado, sn_grupo, nota_autor, due_date, incident_number))
 
 def incidents_para_reconciliar(dias: int = 3) -> list[dict]:
     """Entrada inteira + o que saiu nos últimos dias (pode ter sido encerrado/reaberto no ServiceNow)."""
@@ -410,3 +413,22 @@ def set_camera(incident_number: str, codigo: str):
     with _conn() as conn:
         conn.execute("UPDATE incidents SET camera_codigo=?, camera_lido_em=CURRENT_TIMESTAMP WHERE incident_number=?",
                      (codigo, incident_number))
+
+
+def serie_diaria(dias: int = 7) -> list[dict]:
+    """Despachos e análises por dia (horário de Brasília), dias sem movimento com zero: base do gráfico do cabeçalho."""
+    from datetime import datetime, timedelta, timezone
+    hoje = datetime.now(timezone(timedelta(hours=-3))).date()
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT date(created_at, '-3 hours') AS dia, "
+            "SUM(acao = 'aprovado') AS despachos, SUM(acao = 'analise') AS analises "
+            "FROM history WHERE date(created_at, '-3 hours') >= ? GROUP BY dia",
+            ((hoje - timedelta(days=dias - 1)).isoformat(),)).fetchall()
+    por_dia = {r["dia"]: r for r in rows}
+    out = []
+    for i in range(dias - 1, -1, -1):
+        d = (hoje - timedelta(days=i)).isoformat()
+        r = por_dia.get(d)
+        out.append({"dia": d, "despachos": (r["despachos"] or 0) if r else 0, "analises": (r["analises"] or 0) if r else 0})
+    return out

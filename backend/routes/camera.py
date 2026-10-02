@@ -18,8 +18,15 @@ EVID = ROOT / "data" / "evidencias"
 MAX_CAMERAS = 4
 
 
+class EscolhaIn(BaseModel):
+    consulta: str  # o código/texto do incidente ao qual a escolha responde
+    ip: str
+    nome: str
+
+
 class CameraIn(BaseModel):
     localidade: str | None = None  # quando não dá para descobrir sozinho (ou para corrigir)
+    escolha: EscolhaIn | None = None  # candidata escolhida por você: testa essa e lembra para as próximas vezes
 
 
 class NotaIn(BaseModel):
@@ -62,20 +69,27 @@ def _resolve(n: str, localidade: str | None = None) -> dict:
             raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
         sys_id, estado, grupo, uloc = sn.get("sys_id"), sn.get("state"), sn.get("assignment_group"), sn.get("u_incident_location")
     codes = camera_codes(cam, short, desc)
+    consulta = None
+    if not codes:  # texto livre ("câmera da portaria"): vale a câmera que você já confirmou para ele
+        consulta = (cam or "").strip() or short.strip() or None
+        known = digifort.lembrada(consulta) if consulta else None
+        if known:
+            codes = [known["nome"]]
     # localidade: a informada > a salva > o campo do ServiceNow / regras (inclui prefixo aprendido) > grupo atual
     achada = localidade or (inc or {}).get("localidade")
     if not achada:
         achada = engine.apply_rules({"short_description": short, "description": desc, "u_incident_location": uloc or "",
                                      "camera_codigo": cam or ""})["localidade"] or _localidade_do_grupo(grupo)
     return {"incident_number": n, "sys_id": sys_id, "titulo": short, "descricao": desc, "estado": estado, "grupo": grupo,
-            "localidade": achada, "codes": codes[:MAX_CAMERAS], "camera_codigo": cam, "local": bool(inc)}
+            "localidade": achada, "codes": codes[:MAX_CAMERAS], "consulta": consulta, "camera_codigo": cam,
+            "local": bool(inc)}
 
 
 def _pronto(info: dict) -> None:
     if not digifort.configured():
         raise HTTPException(status_code=409, detail="Digifort não configurado: defina DIGIFORT_USER e DIGIFORT_PASSWORD no .env")
-    if not info["codes"]:
-        raise HTTPException(status_code=422, detail="Incidente sem código de câmera utilizável ('Número do Objeto' vazio ou em texto livre)")
+    if not info["codes"] and not info["consulta"]:
+        raise HTTPException(status_code=422, detail="Incidente sem código nem descrição de câmera para procurar")
 
 
 @router.get("/digifort/status")
@@ -107,17 +121,32 @@ def camera_check(incident_number: str, body: CameraIn | None = None):
     if not srv:
         raise HTTPException(status_code=422, detail=f"Nenhum servidor CFTV de '{info['localidade']}' na lista de servidores")
 
+    escolha = body.escolha if body else None
+    if escolha and not any(s["ip"] == escolha.ip for s in srv):
+        raise HTTPException(status_code=422, detail="A câmera escolhida não é de um servidor desta unidade")
+
     EVID.mkdir(parents=True, exist_ok=True)
     cameras = []
-    for code in info["codes"]:
+    livre = not info["codes"]  # só texto livre: procura pelas palavras, nunca escolhe sozinho
+    for code in info["codes"] or [info["consulta"]]:
         item = {"codigo": code, "achada": None, "working": None, "active": None, "inactive_s": None,
-                "snapshot": False, "erro": None}
-        loc = digifort.locate(code, srv)
+                "snapshot": False, "erro": None, "texto_livre": livre}
+        if escolha and digifort._fold(escolha.consulta) == digifort._fold(code):
+            s = next(s for s in srv if s["ip"] == escolha.ip)
+            loc = {"achada": {"servidor": s["nome"], "ip": s["ip"], "nome": escolha.nome}, "candidatas": [], "erros": [],
+                   "tentados": [s["nome"]]}
+            digifort.lembrar(code, loc["achada"])
+            if livre:  # dali em diante o incidente usa o nome real da câmera (arquivo do print, nota de encerramento)
+                code = item["codigo"] = escolha.nome
+                item["texto_livre"] = False
+        else:
+            loc = digifort.locate(code, srv, automatico=not livre)
         item.update(tentados=loc["tentados"], candidatas=loc["candidatas"], erros_servidores=loc["erros"])
         if not loc["achada"]:
             ok, falhas = len(loc["tentados"]) - len(loc["erros"]), len(loc["erros"])
             if loc["candidatas"]:
-                item["erro"] = "Câmera ambígua: várias candidatas, confira o nome"
+                item["erro"] = ("Nome exato não encontrado: escolha a câmera certa entre as candidatas" if not livre else
+                                "Descrição sem código: escolha a câmera entre as candidatas")
             elif ok == 0:
                 item["erro"] = "Nenhum servidor da unidade respondeu (VPN, porta ou credencial)"
             elif falhas:

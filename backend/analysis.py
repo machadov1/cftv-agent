@@ -74,12 +74,15 @@ def analyze(number: str, sn_incident: dict, *, allow_llm: bool = True, persist: 
     # Extrair data de abertura
     opened = sn_incident.get("opened_at", {})
     opened_at = opened.get("value") if isinstance(opened, dict) else str(opened or "")
+    due = sn_incident.get("due_date", {})
+    due_date = (due.get("value") if isinstance(due, dict) else str(due or "")) or None  # vencimento do SLA (UTC)
 
     db.save_incident(number, {
         "sys_id": sn_incident.get("sys_id"),
         "short_description": sn_incident.get("short_description"),
         "description": sn_incident.get("description"),
         "opened_at": opened_at,
+        "due_date": due_date,
         "caller_id": caller_name,
         "u_incident_location": incident_location,
         "subcategory": sn_incident.get("subcategory"),

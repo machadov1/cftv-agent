@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getHealth, getLlmConfig, saveLlmConfig, testLlm, getLlmModels, getServidoresStatus } from '../api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import RulesPage from './RulesPage';
+import HistoryPage from './HistoryPage';
+import Secoes from '../components/Secoes';
 import { Badge, Button, inputClass } from '../components/ui';
 
 const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
@@ -131,7 +134,7 @@ function Router({ p, onChange }) {
   );
 }
 
-export default function SettingsPage() {
+function Geral() {
   const [cfg, setCfg] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -195,4 +198,15 @@ export default function SettingsPage() {
       </div>
     </div>
   );
+}
+
+const SECOES = [
+  { id: 'geral', label: 'Geral', Page: Geral },
+  { id: 'regras', label: 'Regras', Page: RulesPage },
+  { id: 'historico', label: 'Histórico', Page: HistoryPage },
+];
+
+// Configurações = parâmetros (Geral) + regras de despacho + histórico de ações; target abre direto numa seção.
+export default function SettingsPage({ target }) {
+  return <Secoes secoes={SECOES} target={target} label="Seções de configuração" />;
 }

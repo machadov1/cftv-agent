@@ -36,7 +36,7 @@ def _flat(rec: dict) -> dict:
 INCIDENT_FIELDS = ("sys_id,number,short_description,description,state,assignment_group,cmdb_ci,cmdb_ci.location,"
                    "opened_at,caller_id,caller_id.location,u_incident_location,u_informal_service,subcategory,work_notes,"
                    "due_date")
-ESTADO_FIELDS = "sys_id,number,state,assignment_group,work_notes"
+ESTADO_FIELDS = "sys_id,number,state,assignment_group,work_notes,due_date"
 
 CAMERA_VAR_IDS = ("ni.QS31b3a8091b315510e8142f07b04bcbf5", "ni.QS4436e00d1b315510e8142f07b04bcb0d")
 
@@ -146,7 +146,8 @@ class ServiceNowAPI:
                 st = r.get('state') or {}
                 out.append({'sys_id': (r.get('sys_id') or {}).get('value'), 'number': (r.get('number') or {}).get('value'),
                             'state': str(st.get('value') or ''), 'grupo': g.get('value') or '',
-                            'grupo_nome': g.get('display_value') or '', 'work_notes': wn.get('display_value') or ''})
+                            'grupo_nome': g.get('display_value') or '', 'work_notes': wn.get('display_value') or '',
+                            'due_date': (r.get('due_date') or {}).get('value') or None})
         return out
 
     def meu_nome(self) -> str | None:

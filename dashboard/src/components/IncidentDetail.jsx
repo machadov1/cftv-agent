@@ -5,7 +5,7 @@ import {
 import { HOLD_MS } from './HoldButton';
 import RitmPanel from './RitmPanel';
 import CameraPanel from './CameraPanel';
-import { Badge, Button, ConfBar, statusLabel, statusTone, timeAgo, unitColor } from './ui';
+import { Badge, Button, ConfBar, dataSN, prazoSLA, statusLabel, statusTone, timeAgo, unitColor } from './ui';
 
 const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
 
@@ -131,6 +131,7 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
 
   const hasGroup = !!incident?.grupo;
   // etapa: Entrada (despachar/editar) -> Saída (despachado ou tratado fora: RITM, e-mail, nota, encerrar) -> encerrado
+  const sla = prazoSLA(incident?.due_date);
   const etapa = incident?.status === 'analisado' ? 'entrada'
     : incident?.status === 'aprovado' || incident?.status === 'tratado_fora' ? 'saida' : 'encerrado';
   const approved = etapa !== 'entrada';  // fora da Entrada não há despacho nem edição
@@ -326,17 +327,19 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
           <Cell label="Pendência">{incident.pendencia ?? '—'}</Cell>
           <Cell label="Analisado há" mono>{timeAgo(incident.updated_at)}</Cell>
           <Cell label="Solicitante">{incident.caller_id ?? '—'}</Cell>
-          {incident.opened_at && (
-            <Cell label="Aberto em" mono>
-              {new Date(incident.opened_at).toLocaleString('pt-BR', { timeZone: 'UTC' })}
+          {(incident.opened_at || incident.due_date) && (
+            <Cell label="Aberto · SLA" mono>
+              <span className="block">aberto {dataSN(incident.opened_at)}</span>
+              {sla ? <span className={`block font-bold ${sla.tone === 'bad' ? 'text-bad' : sla.tone === 'warn' ? 'text-warn' : ''}`}>{sla.txt}</span>
+                : <span className="block text-mute">vencimento: reler para buscar</span>}
             </Cell>
           )}
           <Cell label="Por quê" mono truncate>
             <span>{incident.motivo || '—'}</span>
             {incident.camera_codigo && <span className="ml-2 text-mute">(ref: {incident.camera_codigo})</span>}
           </Cell>
-          {!incident.opened_at && <Cell label="sys_id" mono className="col-span-2 !border-r-0">{incident.sys_id ?? '—'}</Cell>}
-          {incident.opened_at && <Cell label="sys_id" mono className="col-span-2 !border-r-0">{incident.sys_id ?? '—'}</Cell>}
+          {!(incident.opened_at || incident.due_date) && <Cell label="sys_id" mono className="col-span-2 !border-r-0">{incident.sys_id ?? '—'}</Cell>}
+          {(incident.opened_at || incident.due_date) && <Cell label="sys_id" mono className="col-span-2 !border-r-0">{incident.sys_id ?? '—'}</Cell>}
         </div>
 
         {incident.status === 'tratado_fora' && (
@@ -373,7 +376,7 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
           <div className="border-b-2 border-rule bg-warn/15 px-5 py-3 text-xs font-semibold text-warn">
             {incident.pendencia?.startsWith('Mover só')
               ? incident.pendencia
-              : 'Sem grupo de destino. Clique em Editar para escolher a fila à mão, ou crie uma regra na aba Regras: nada será movido enquanto isso.'}
+              : 'Sem grupo de destino. Clique em Editar para escolher a fila à mão, ou crie uma regra em Configurações › Regras: nada será movido enquanto isso.'}
           </div>
         )}
         {(chosen || editing) && (

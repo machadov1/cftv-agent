@@ -3,7 +3,9 @@ import { processIncident, getIncidents, getSaida, getIncident, getMockIncidents,
 import IncidentDetail from '../components/IncidentDetail';
 import HoldButton from '../components/HoldButton';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Badge, Button, inputClass, timeAgo, unitColor } from '../components/ui';
+import { Badge, Button, dataSN, inputClass, prazoSLA, timeAgo, unitColor } from '../components/ui';
+
+const TOM = { bad: 'text-bad', warn: 'text-warn', mute: '' };
 
 // Entrada = aguarda primeira tratativa (Novo na AMS-TI-CFTV, sem nota minha). Saída = já saiu da Entrada nas
 // últimas 24 h: despachado pelo agente ou tratado direto no ServiceNow ("fora do agente").
@@ -27,6 +29,7 @@ function Ticket({ i, active, checked, onClick }) {
   const done = i.status === 'aprovado' || i.status === 'tratado_fora';
   const fora = i.status === 'tratado_fora';
   const conf = i.localidade_confianca ?? 0;
+  const sla = prazoSLA(i.due_date);
   return (
     <button
       onClick={onClick}
@@ -58,10 +61,11 @@ function Ticket({ i, active, checked, onClick }) {
             </>
           )}
         </div>
-        {i.opened_at && (
+        {(i.opened_at || i.due_date) && (
           <div className="mt-1 font-mono text-[12.5px] text-mute">
             {i.caller_id && <span>{i.caller_id} · </span>}
-            {new Date(i.opened_at).toLocaleString('pt-BR', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {i.opened_at && <span>aberto {dataSN(i.opened_at)}</span>}
+            {sla && <span className={`font-bold ${TOM[sla.tone]}`}> · {sla.txt}</span>}
           </div>
         )}
       </div>

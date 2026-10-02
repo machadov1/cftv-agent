@@ -126,6 +126,30 @@ export function parseUtc(s) {
   return s ? new Date(s.replace(' ', 'T') + 'Z') : null;
 }
 
+const BRT = 'America/Sao_Paulo';
+const diaBRT = (d) => d.toLocaleDateString('pt-BR', { timeZone: BRT });
+const horaBRT = (d) => d.toLocaleTimeString('pt-BR', { timeZone: BRT, hour: '2-digit', minute: '2-digit' });
+
+// Data/hora do ServiceNow (valor bruto em UTC) no horário de Brasília: '02/10 09:12'.
+export function dataSN(s) {
+  const d = parseUtc(s);
+  return d ? `${diaBRT(d).slice(0, 5)} ${horaBRT(d)}` : '—';
+}
+
+// Vencimento do SLA: {txt, tone}. Vencido/menos de 4 h = vermelho; hoje ou amanhã = âmbar; depois = neutro.
+export function prazoSLA(s) {
+  const d = parseUtc(s);
+  if (!d) return null;
+  const min = Math.round((d.getTime() - Date.now()) / 60000);
+  const dur = (m) => (m < 60 ? `${m}min` : m < 1440 ? `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}` : `${Math.floor(m / 1440)}d`);
+  if (min < 0) return { txt: `SLA vencido há ${dur(-min)}`, tone: 'bad' };
+  const hoje = diaBRT(new Date());
+  const amanha = diaBRT(new Date(Date.now() + 86400000));
+  const quando = diaBRT(d) === hoje ? `hoje ${horaBRT(d)}` : diaBRT(d) === amanha ? `amanhã ${horaBRT(d)}` : dataSN(s);
+  if (min < 240) return { txt: `vence em ${dur(min)} (${horaBRT(d)})`, tone: 'bad' };
+  return { txt: `vence ${quando}`, tone: diaBRT(d) === hoje || diaBRT(d) === amanha ? 'warn' : 'mute' };
+}
+
 export function timeAgo(s) {
   const d = parseUtc(s);
   if (!d) return '—';

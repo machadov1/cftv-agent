@@ -102,3 +102,24 @@ def detect(*texts: str) -> dict | None:
     if m:
         return find(m.group(0)) or {"nome": m.group(0).upper(), "ip": None}
     return None
+
+
+def topologia() -> list[dict]:
+    """Unidades com seus servidores de CFTV (Digifort), só campos seguros: [{unidade, servidores:[{nome, ip, tipo}]}].
+    Nomes de unidade vêm limpos ('Pecém ' e 'Pecém' viram uma só)."""
+    ordem = {"servidor": 0, "maquina": 1, "faillover": 2, "failover": 2}
+    grupos: dict[str, dict] = {}
+    for r in _load():
+        if "cftv" not in (r["tipo"] or "").lower():
+            continue
+        nome_u = (r["unidade"] or "Sem unidade").strip()
+        g = grupos.setdefault(_fold(nome_u), {"unidade": nome_u, "servidores": []})
+        g["servidores"].append({"nome": r["nome"], "ip": r["ip"], "tipo": r["tipo"]})
+    for g in grupos.values():
+        g["servidores"].sort(key=lambda s: (ordem.get(_fold(s["tipo"]).split(" ")[0], 3), s["nome"]))
+    return sorted(grupos.values(), key=lambda g: g["unidade"])
+
+
+def servidor_cftv(ip: str) -> dict | None:
+    """O servidor CFTV da lista com este IP (o painel só consulta IPs que estão na lista)."""
+    return next((r for r in _load() if r["ip"] == ip and "cftv" in (r["tipo"] or "").lower()), None)
