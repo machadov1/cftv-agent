@@ -441,19 +441,34 @@ CLOSE_CODE = "Solved"
 
 @router.post("/{incident_number}/close")
 def close_incident(incident_number: str, body: dict):
-    """Encerra (Resolvido, fluxo 9.3 da skill): state 6, close_code, close_notes e work note. Só incidente da Saída
-    (já despachado/tratado); respeita dry-run. Pedido explícito do Victor = gesto de segurar no painel."""
-    inc = _get_inc(incident_number)
+    """Encerra (Resolvido, fluxo 9.3 da skill): state 6, close_code, close_notes e work note. Incidente da Saída
+    (já despachado/tratado) ou do backlog (lido direto do ServiceNow, já em andamento); respeita dry-run.
+    Pedido explícito do Victor = gesto de segurar no painel."""
+    local = db.get_incident(incident_number.upper())
+    inc = local or _get_inc(incident_number)
     n = inc["incident_number"]
     texto = (body.get("work_notes") or "").strip()
     if not texto:
         raise HTTPException(status_code=422, detail="Escreva a nota de encerramento")
-    if inc.get("status") == fluxo.ENCERRADO:
-        raise HTTPException(status_code=409, detail="Já encerrado")
-    if inc.get("status") not in fluxo.SAIDA:
-        raise HTTPException(status_code=409, detail="Ainda na Entrada: despache antes de encerrar")
+    if local:
+        if inc.get("status") == fluxo.ENCERRADO:
+            raise HTTPException(status_code=409, detail="Já encerrado")
+        if inc.get("status") not in fluxo.SAIDA:
+            raise HTTPException(status_code=409, detail="Ainda na Entrada: despache antes de encerrar")
     if not inc.get("sys_id"):
         raise HTTPException(status_code=409, detail="sys_id ausente; reprocesse o incidente")
+    if not local:  # backlog: o estado que vale é o do ServiceNow agora
+        try:
+            atual = sn_api.get_current(inc["sys_id"])
+        except SNAuthError:
+            raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar no cabeçalho")
+        estado = str((atual or {}).get("state") or "")
+        if not atual:
+            raise HTTPException(status_code=502, detail="Não consegui ler o incidente; nada foi enviado")
+        if estado in fluxo.ESTADOS_ENCERRADOS:
+            raise HTTPException(status_code=409, detail="Já encerrado no ServiceNow")
+        if estado == "1":
+            raise HTTPException(status_code=409, detail="Ainda Novo: dê a primeira tratativa antes de encerrar")
     payload = {"state": "6", "close_code": CLOSE_CODE, "close_notes": texto, "work_notes": texto,
                "u_is_recurring_incident": "no", "assigned_to": ASSIGNED_TO}
     simulado = config.SERVICENOW_DRY_RUN or config.SERVICENOW_MOCK

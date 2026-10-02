@@ -1,7 +1,87 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getBacklog } from '../api';
+import { closeIncident, getBacklog } from '../api';
+import CameraPanel from '../components/CameraPanel';
+import HoldButton from '../components/HoldButton';
 import LoadingSpinner from '../components/LoadingSpinner';
+import RitmPanel from '../components/RitmPanel';
 import { Button, NO_UNIT_COLOR, unitColor } from '../components/ui';
+
+const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
+const snLink = (n) => `https://amamericas.service-now.com/nav_to.do?uri=incident.do%3Fsysparm_query%3Dnumber%3D${n}`;
+
+// Tratar um incidente do backlog sem sair da tela: os mesmos painéis da Operação (teste de câmera -> print ->
+// work note/encerrar, RITM) e o Encerrar (segurar). Tudo lido/gravado direto no ServiceNow, respeitando o dry-run.
+function Tratar({ r, onFechar, onEncerrado }) {
+  const [nota, setNota] = useState('');
+  const [fim, setFim] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const esc = (e) => e.key === 'Escape' && onFechar();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [onFechar]);
+
+  const encerrar = async () => {
+    setBusy(true);
+    try {
+      const res = await closeIncident(r.number, nota.trim());
+      setFim(res);
+      if (!res.simulado) onEncerrado();
+    } catch (e) { setFim({ erro: e.message }); }
+    setBusy(false);
+  };
+  const novo = r.status === 'Novo';
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={onFechar}>
+      <aside className="flex h-full w-full max-w-[760px] flex-col border-l-4 border-rule bg-bg shadow-[-6px_0_0_var(--c-rule)]"
+        onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-start gap-3 border-b-2 border-rule bg-panel px-5 py-3"
+          style={{ borderLeft: `8px solid ${teamColor(r.equipe)}` }}>
+          <div className="min-w-0 flex-1">
+            <a href={snLink(r.number)} target="_blank" rel="noreferrer" className="font-mono text-[13.75px] font-bold text-accent hover:underline">
+              {r.number}
+            </a>
+            <span className="ml-2 font-mono text-[12.5px] text-mute">{r.status} · {r.grupo} · {r.prazo_txt}</span>
+            <div className="mt-0.5 font-display text-xl font-extrabold leading-tight">{r.titulo}</div>
+          </div>
+          <Button onClick={onFechar}>Fechar</Button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {novo && (
+            <p className="border-b-2 border-rule px-5 py-2 font-mono text-[12.5px] font-bold text-warn">
+              Ainda Novo: a primeira tratativa é pela Operação (Entrada). O encerramento só vale depois dela.
+            </p>
+          )}
+          <CameraPanel number={r.number} />
+          <div className="border-b-2 border-rule px-5 py-3">
+            <RitmPanel key={r.number} incident={{ incident_number: r.number }} />
+          </div>
+          <div className="px-5 py-3">
+            <div className={LABEL}>Encerramento</div>
+            <p className="mt-1 text-xs text-mute">
+              Resolve no ServiceNow (estado Resolvido, código Solved) com este texto como nota de encerramento e work note.
+            </p>
+            <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={4} disabled={fim?.sucesso && !fim.simulado}
+              placeholder="Causa raiz: … / Resolução: … / Encerramento: Incidente encerrado."
+              className="mt-2 w-full border-2 border-rule bg-panel px-2 py-1.5 font-mono text-[13.75px]" />
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <HoldButton onDone={encerrar} disabled={busy || !nota.trim() || novo || (fim?.sucesso && !fim.simulado)}
+                className="border-l-8 border-bad">
+                {busy ? 'Encerrando…' : 'Encerrar (Resolvido)'}
+              </HoldButton>
+              {fim?.erro && <span className="font-mono text-[12.5px] font-bold text-bad">{fim.erro}</span>}
+              {fim?.sucesso && (
+                <span className={`font-mono text-[12.5px] font-bold ${fim.simulado ? 'text-warn' : 'text-ok'}`}>{fim.mensagem}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
 
 const TEAM_UNIT = { JDF: 'Juiz de Fora', MDE: 'João Monlevade', PIR: 'Piracicaba', RSD: 'Resende', BMA: 'Barra Mansa' };
 const TEAM_EXTRA = { PEC: '#0369a1', LORA: '#0f766e', A4: '#6d28d9', '4 OLHOS': '#9a3412', Geral: '#57534e' };
@@ -44,7 +124,7 @@ function Box({ title, children, className = '' }) {
 // Quadro por estado (como o board do ServiceNow): uma coluna por status, cartão por incidente, já ordenado por prazo
 const STATUS_ORDER = ['Novo', 'Em Andamento', 'Em Espera'];
 
-function Quadro({ rows }) {
+function Quadro({ rows, onAbrir }) {
   const cols = [...new Set(rows.map((r) => r.status))].sort((a, b) => {
     const ia = STATUS_ORDER.indexOf(a);
     const ib = STATUS_ORDER.indexOf(b);
@@ -63,7 +143,8 @@ function Quadro({ rows }) {
             </h3>
             <div className="space-y-2 p-2">
               {items.map((r) => (
-                <article key={r.number} className="border-2 border-rule bg-panel" style={{ borderLeft: `8px solid ${teamColor(r.equipe)}` }}>
+                <article key={r.number} onClick={() => onAbrir(r)} title="Tratar / encerrar"
+                  className="cursor-pointer border-2 border-rule bg-panel hover:bg-panel2" style={{ borderLeft: `8px solid ${teamColor(r.equipe)}` }}>
                   <div className="flex items-center justify-between gap-2 px-2.5 pt-1.5">
                     <span className="font-mono text-[13.75px] font-bold text-accent">{r.number}</span>
                     <span className={`px-1.5 py-px font-mono text-[12.5px] font-bold ${PRAZO_TONE[r.prazo_estado]}`}>{r.prazo_txt}</span>
@@ -89,6 +170,7 @@ export default function BacklogPage() {
   const [busy, setBusy] = useState(false);
   const [team, setTeam] = useState('Todas');
   const [view, setView] = useState('tabela');
+  const [aberto, setAberto] = useState(null);
 
   const load = useCallback(async (force = false) => {
     setBusy(true);
@@ -204,7 +286,7 @@ export default function BacklogPage() {
             </span>
           </div>
 
-          {view === 'quadro' ? <Quadro rows={rows} /> : (
+          {view === 'quadro' ? <Quadro rows={rows} onAbrir={setAberto} /> : (
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-panel2">
@@ -222,15 +304,17 @@ export default function BacklogPage() {
               </thead>
               <tbody className="zebra">
                 {rows.map((r) => (
-                  <tr key={r.number} className="border-b border-line hover:!bg-bg">
+                  <tr key={r.number} onClick={() => setAberto(r)} title="Clique para tratar / encerrar"
+                    className="cursor-pointer border-b border-line hover:!bg-bg">
                     <td className="w-1.5 p-0" style={{ background: PRAZO_STRIPE[r.prazo_estado] }} />
                     <td className="py-2 pl-3 pr-3 font-mono font-bold">
                       <a
                         className="text-accent hover:underline"
-                        href={`https://amamericas.service-now.com/nav_to.do?uri=incident.do%3Fsysparm_query%3Dnumber%3D${r.number}`}
+                        href={snLink(r.number)}
                         target="_blank"
                         rel="noreferrer"
                         title="Abrir no ServiceNow"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {r.number}
                       </a>
@@ -263,6 +347,7 @@ export default function BacklogPage() {
           )}
         </>
       )}
+      {aberto && <Tratar key={aberto.number} r={aberto} onFechar={() => setAberto(null)} onEncerrado={() => load(true)} />}
     </div>
   );
 }

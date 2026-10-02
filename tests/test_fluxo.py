@@ -113,6 +113,24 @@ def test_encerrar_so_da_saida_e_respeita_dry_run(client, monkeypatch):
     assert db.get_incident("INC5")["status"] == "aprovado"  # simulado não muda o status local
 
 
+def test_encerrar_do_backlog_confere_o_estado_no_servicenow(client, monkeypatch):
+    from backend.routes import camera, incidents
+    enviados, estado = [], {"state": "2"}
+    sn = {"sys_id": "s9", "short_description": "Piracicaba - Câmera PIR400 sem conexão", "description": "",
+          "state": "2", "assignment_group": "AMS-TI-CFTV-PIR", "u_incident_location": ""}
+    monkeypatch.setattr(camera.sn_api, "get_incident", lambda n: sn)
+    monkeypatch.setattr(incidents.sn_api, "get_current", lambda sid: {"state": estado["state"], "work_notes": ""})
+    monkeypatch.setattr(incidents.sn_api, "patch_incident", lambda sid, f: enviados.append(f) or True)
+    r = client.post("/incidents/INC9/close", json={"work_notes": "Câmera reestabelecida. Incidente encerrado."}).json()
+    assert r["simulado"] is True and enviados[0]["state"] == "6"
+    estado["state"] = "1"
+    r = client.post("/incidents/INC9/close", json={"work_notes": "x"})
+    assert r.status_code == 409 and "Novo" in r.json()["detail"]
+    estado["state"] = "6"
+    assert client.post("/incidents/INC9/close", json={"work_notes": "x"}).status_code == 409
+    assert len(enviados) == 1
+
+
 # ---- pistas ----
 
 def test_ic_de_servidor_define_a_unidade_do_alerta():

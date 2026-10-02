@@ -350,6 +350,9 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
   por um modelo com visão e depois o laço de ferramentas roda só com texto. Ferramentas **somente leitura**: `listar_fila`,
   `consultar_incidentes`, `propor_primeira_tratativa`. Ações viram proposta; a execução é o `/approve` (dry-run, duplicidade),
   confirmada com o gesto de segurar. Só incidentes em estado Novo entram na Entrada.
+- **Tratar pelo Backlog** (`pages/BacklogPage.jsx`, `Tratar`): clicar num incidente (tabela ou quadro) abre ao lado os
+  mesmos painéis da Operação: teste de câmera (print, work note, encerrar), RITM e Encerrar (segurar). `POST /close` aceita
+  incidente fora da fila local: confere o estado no ServiceNow (encerrado 6/7/24 ou ainda Novo = recusa). Respeita o dry-run.
 - **Tasks ocultas**: `data/tasks_ocultas.json` (`{"TASK...": "motivo"}`) tira casos pontuais do painel de Tasks.
 - Testes nunca chamam LLM real nem o ServiceNow (`tests/conftest.py`).
 
