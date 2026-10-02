@@ -1,0 +1,235 @@
+{
+  "rules": [
+    {
+      "id": 20,
+      "pattern": "failed to heartbeat|comunicando com (o )?SCOM",
+      "localidade": "Projects (monitoramento)",
+      "grupo": "a49b56af93eaa2d8e3e07ed548373c7d",
+      "grupo_display": "AMS-TI-CFTV-PRJ",
+      "ritm_necessaria": false,
+      "categoria": null,
+      "subcategory": null,
+      "pendencia": null
+    },
+    {
+      "id": 1,
+      "pattern": "LORA.*(?<![A-Za-z])(MDE|Monlevade)|(?<![A-Za-z])(MDE|Monlevade).*LORA",
+      "localidade": "João Monlevade (LORA)",
+      "grupo": "01ff796e1bcc3810a7cefeaf034bcb29",
+      "grupo_display": "AMS-TI-LORA-MDE",
+      "ritm_necessaria": false,
+      "categoria": "hardware",
+      "subcategory": "Facilidades"
+    },
+    {
+      "id": 2,
+      "pattern": "TAG LORA|LORA",
+      "localidade": "Piracicaba (LORA)",
+      "grupo": "693c5415db9c6090e56ee7dcd3961910",
+      "grupo_display": "AMS-TI-LORA-PIR",
+      "ritm_necessaria": false,
+      "categoria": "hardware",
+      "subcategory": "Facilidades"
+    },
+    {
+      "id": 3,
+      "pattern": "(?<![A-Za-z])PIR(?![A-Za-z])|Piracicaba",
+      "localidade": "Piracicaba",
+      "grupo": "287a11d0dbd9b7c0e5f36451ca961955",
+      "grupo_display": "AMS-TI-CFTV-PIR",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 4,
+      "pattern": "(?<![A-Za-z])(MDE|Monlevade)",
+      "localidade": "João Monlevade",
+      "grupo": "e07a11d0dbd9b7c0e5f36451ca96194e",
+      "grupo_display": "AMS-TI-CFTV-MDE",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 5,
+      "pattern": "(?<![A-Za-z])(BM|BMA|SUC)(?![A-Za-z])|Barra Mansa",
+      "localidade": "Barra Mansa",
+      "grupo": "e87a11d0dbd9b7c0e5f36451ca961930",
+      "grupo_display": "AMS-TI-CFTV-DBB",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 6,
+      "pattern": "(?<![A-Za-z])(RSD|RES\\d*)(?![A-Za-z])|Resende",
+      "localidade": "Resende",
+      "grupo": "a07a11d0dbd9b7c0e5f36451ca961933",
+      "grupo_display": "AMS-TI-CFTV-DBC",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 7,
+      "pattern": "(?<![A-Za-z])JDF(?![A-Za-z])|Juiz de Fora",
+      "localidade": "Juiz de Fora",
+      "grupo": "2c7a11d0dbd9b7c0e5f36451ca96194b",
+      "grupo_display": "AMS-TI-CFTV-JUA",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 8,
+      "pattern": "(?<![A-Za-z])BBD(?![A-Za-z])|Bauru",
+      "localidade": "Bauru",
+      "grupo": "a87a11d0dbd9b7c0e5f36451ca96191f",
+      "grupo_display": "AMS-TI-CFTV-BBD",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 9,
+      "pattern": "(?<![A-Za-z])SAB(?![A-Za-z])|Sabar[aá]",
+      "localidade": "Sabará",
+      "grupo": "ec7a11d0dbd9b7c0e5f36451ca961957",
+      "grupo_display": "AMS-TI-CFTV-SAB",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 10,
+      "pattern": "Guarulhos|(?<![A-Za-z])GUA(?![A-Za-z])",
+      "localidade": "Guarulhos",
+      "grupo": "e47a11d0dbd9b7c0e5f36451ca961944",
+      "grupo_display": "AMS-TI-CFTV-GUA",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 11,
+      "pattern": "Candeias",
+      "localidade": "Candeias",
+      "grupo": "287a11d0dbd9b7c0e5f36451ca961924",
+      "grupo_display": "AMS-TI-CFTV-BZK",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 12,
+      "pattern": "Iracem[aá]polis",
+      "localidade": "Iracemápolis",
+      "grupo": "a47a11d0dbd9b7c0e5f36451ca961929",
+      "grupo_display": "AMS-TI-CFTV-BZX",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 13,
+      "pattern": "Jaboat[aã]o",
+      "localidade": "Jaboatão",
+      "grupo": "ac7a11d0dbd9b7c0e5f36451ca961946",
+      "grupo_display": "AMS-TI-CFTV-JAB",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 14,
+      "pattern": "Vega do Sul",
+      "localidade": "Vega do Sul",
+      "grupo": "e093b5a81bd0c0981958997fbd4bcbc2",
+      "grupo_display": "AMS-TI-CFTV-SFR",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 15,
+      "pattern": "Rio das Pedras",
+      "localidade": "Rio das Pedras",
+      "grupo": "ae5a913c2be2e614f122f2def291bf5d",
+      "grupo_display": "AMS-TI-CFTV-RDP",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 16,
+      "pattern": "Tubar[aã]o",
+      "localidade": "Tubarão",
+      "grupo": "a97a15d0dbd9b7c0e5f36451ca961953",
+      "grupo_display": "FCB-TI-TS-CFTV",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 17,
+      "pattern": "Igarap[eé]",
+      "localidade": "Igarapé",
+      "grupo": "a07a11d0dbd9b7c0e5f36451ca96191d",
+      "grupo_display": "AMS-TI-CFTV",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom",
+      "pendencia": "Sem grupo próprio: fila geral"
+    },
+    {
+      "id": 18,
+      "pattern": "Serra Azul|Itatia[cç]u|10\\.58\\.84\\.22",
+      "localidade": "Serra Azul",
+      "grupo": null,
+      "grupo_display": "AMS-TI-CFTV-XDF (exige OK do Victor)",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom",
+      "pendencia": "Mover só com OK do Victor: setar o IC muda a severidade"
+    },
+    {
+      "id": 19,
+      "pattern": "fibra.*rompida|rompida.*fibra|rompimento de fibra|ruptura",
+      "localidade": null,
+      "ritm_necessaria": true,
+      "categoria": "network",
+      "pendencia": "Infraestrutura"
+    },
+    {
+      "id": 21,
+      "pattern": "(?<![A-Za-z])(AND|Andrade)(?![A-Za-z])",
+      "localidade": "Mina do Andrade",
+      "grupo": "366a9990dbd9b7c0e5f36451ca9619cd",
+      "grupo_display": "AMS-TI-CFTV-BZD",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 22,
+      "pattern": "(?<![A-Za-z])(PEC|PECEM|Pecém)(?![A-Za-z])",
+      "localidade": "AM PECEM",
+      "grupo": "1bcc7ad91bc78290febdeac82d4bcbe8",
+      "grupo_display": "FCB-INFRA-CFTV-PEC",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    },
+    {
+      "id": 23,
+      "pattern": "(?<![A-Za-z])(CTG|Contagem|GATC|Arames)(?![A-Za-z])|Belgo.*Contagem|ARAMES",
+      "localidade": "Belgo Contagem",
+      "grupo": "811ec73e2b04c310835af286f291bf07",
+      "grupo_display": "AMS-TI-CFTV-ARAMES-CTG",
+      "ritm_necessaria": false,
+      "categoria": "network",
+      "subcategory": "Telecom"
+    }
+  ]
+}

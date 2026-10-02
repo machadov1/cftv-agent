@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Direção A · Mesa de Despacho</title>
+<style>
+  /* Swiss industrial print: papel jornal, tipografia pesada, grade visível, um vermelho de alerta */
+  :root{
+    --paper:#ece9e1; --ink:#101010; --rule:#101010; --mute:#6b675e; --red:#e2231a; --ok:#0b6b3a; --amber:#c47a00;
+    --display:Bahnschrift,"Arial Narrow","Franklin Gothic Medium",Arial,sans-serif;
+    --mono:Consolas,"Lucida Console",monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--display);min-height:100vh}
+  .frame{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.15fr);border:3px solid var(--rule);margin:14px;min-height:calc(100vh - 28px);grid-template-rows:auto 1fr}
+  header{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;align-items:stretch;border-bottom:3px solid var(--rule)}
+  header .brand{padding:10px 16px;border-right:3px solid var(--rule);font-weight:800;font-stretch:condensed;letter-spacing:.02em;font-size:22px;text-transform:uppercase;line-height:1}
+  header .brand small{display:block;font-family:var(--mono);font-weight:400;font-size:10px;letter-spacing:.14em;color:var(--mute);margin-top:4px}
+  .strip{display:flex;align-items:center;gap:22px;padding:0 18px;font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .strip b{font-weight:700}
+  .flag{padding:10px 16px;border-left:3px solid var(--rule);display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;font-weight:700;background:var(--ink);color:var(--paper)}
+  .flag i{width:10px;height:10px;background:var(--amber);display:inline-block}
+  /* fila */
+  .queue{border-right:3px solid var(--rule);display:flex;flex-direction:column}
+  .numbers{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:3px solid var(--rule)}
+  .numbers div{padding:10px 14px;border-right:1.5px solid var(--rule)}
+  .numbers div:last-child{border-right:0}
+  .numbers .n{font-size:64px;font-weight:800;line-height:.9;letter-spacing:-.03em;font-stretch:condensed}
+  .numbers .l{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--mute);margin-top:6px}
+  .numbers .red .n{color:var(--red)}
+  .ticket{display:grid;grid-template-columns:78px 1fr auto;border-bottom:1.5px solid var(--rule);cursor:pointer;position:relative;transition:background .12s,transform .12s}
+  .ticket:hover{background:#e0dcd0}
+  .ticket.sel{background:var(--ink);color:var(--paper)}
+  .ticket.sel .id,.ticket.sel .loc{color:var(--paper)}
+  .ticket .stub{border-right:1.5px dashed currentColor;padding:12px 8px;font-family:var(--mono);font-size:11px;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;letter-spacing:.1em}
+  .ticket .body{padding:12px 14px}
+  .ticket .id{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--red)}
+  .ticket .t{font-size:19px;font-weight:700;line-height:1.12;margin:3px 0 6px;font-stretch:condensed}
+  .ticket .loc{font-family:var(--mono);font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+  .ticket .side{padding:12px 14px;text-align:right;font-family:var(--mono);font-size:11px}
+  .ticket .pct{font-size:30px;font-weight:800;font-family:var(--display);line-height:1}
+  .tag{display:inline-block;border:1.5px solid currentColor;padding:1px 6px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:6px}
+  .tag.block{background:var(--red);border-color:var(--red);color:#fff}
+  .ticket.done{opacity:.55}
+  /* decisão */
+  .decision{padding:0;display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .decision .head{padding:14px 20px;border-bottom:3px solid var(--rule)}
+  .decision .head .id{font-family:var(--mono);color:var(--red);font-weight:700;font-size:13px}
+  .decision .head h1{font-size:44px;line-height:.98;letter-spacing:-.02em;font-stretch:condensed;margin-top:4px;text-transform:uppercase}
+  .route{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-bottom:3px solid var(--rule)}
+  .route>div{padding:16px 20px}
+  .route .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+  .route .v{font-size:30px;font-weight:800;font-stretch:condensed;line-height:1;margin-top:4px}
+  .route .arrow{font-size:46px;font-weight:800;padding:0 4px;border-left:1.5px solid var(--rule);border-right:1.5px solid var(--rule);align-self:stretch;display:flex;align-items:center}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;border-bottom:3px solid var(--rule)}
+  .grid2>div{padding:12px 20px;border-right:1.5px solid var(--rule);border-bottom:1.5px solid var(--rule)}
+  .grid2>div:nth-child(2n){border-right:0}
+  .grid2 .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+  .grid2 .v{font-family:var(--mono);font-size:13px;margin-top:3px;word-break:break-all}
+  .patch{padding:14px 20px;font-family:var(--mono);font-size:12px;line-height:1.55;flex:1;background:repeating-linear-gradient(180deg,transparent 0 21px,rgba(16,16,16,.08) 21px 22px)}
+  .patch .k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:6px;display:block}
+  .patch em{font-style:normal;color:var(--red);font-weight:700}
+  .actions{display:grid;grid-template-columns:1fr auto;border-top:3px solid var(--rule)}
+  .actions button{font-family:var(--display);font-stretch:condensed;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border:0;background:var(--paper);color:var(--ink);cursor:pointer;padding:0 22px;height:76px;font-size:26px;text-align:left;position:relative;overflow:hidden}
+  .actions button.go{background:var(--ink);color:var(--paper)}
+  .actions button.go:hover:not(:disabled){background:var(--red)}
+  .actions button:disabled{background:repeating-linear-gradient(135deg,#d6d2c6 0 8px,#ece9e1 8px 16px);color:var(--mute);cursor:not-allowed}
+  .actions button.edit{border-left:3px solid var(--rule);font-size:18px}
+  .hold{position:absolute;left:0;bottom:0;height:6px;background:var(--red);width:0}
+  .hint{font-family:var(--mono);font-size:10px;letter-spacing:.1em;display:block;font-weight:400;opacity:.75;margin-top:3px}
+  /* carimbo */
+  .stamp{position:absolute;right:26px;top:330px;border:6px solid var(--red);color:var(--red);padding:6px 16px;font-size:46px;font-weight:800;text-transform:uppercase;font-stretch:condensed;letter-spacing:.04em;transform:rotate(-9deg) scale(3);opacity:0;pointer-events:none;mix-blend-mode:multiply;text-align:center;line-height:1}
+  .stamp small{display:block;font-size:13px;font-family:var(--mono);letter-spacing:.14em}
+  .stamp.on{animation:stamp .42s cubic-bezier(.2,.9,.2,1) forwards}
+  @keyframes stamp{0%{opacity:0;transform:rotate(-9deg) scale(3)}60%{opacity:1;transform:rotate(-9deg) scale(.96)}100%{opacity:.92;transform:rotate(-9deg) scale(1)}}
+  @media(max-width:900px){.frame{grid-template-columns:1fr}.queue{border-right:0;border-bottom:3px solid var(--rule)}header{grid-template-columns:1fr}.strip{padding:8px 16px;flex-wrap:wrap}}
+  @media(prefers-reduced-motion:reduce){.stamp.on{animation:none;opacity:.92;transform:rotate(-9deg)}}
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <div class="brand">CFTV Agent<small>Mesa de despacho · Grupo Alert</small></div>
+    <div class="strip"><span>Serviço <b>online</b></span><span>ServiceNow <b>conectado</b></span><span id="clock"></span></div>
+    <div class="flag"><i></i> DRY-RUN · nada é gravado</div>
+  </header>
+
+  <section class="queue" aria-label="Fila">
+    <div class="numbers">
+      <div class="red"><div class="n" id="npend">4</div><div class="l">Aguardando você</div></div>
+      <div><div class="n">1</div><div class="l">Despachados hoje</div></div>
+      <div><div class="n">100<span style="font-size:28px">%</span></div><div class="l">Sem chamar LLM</div></div>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section class="decision" aria-label="Decisão">
+    <div class="stamp" id="stamp">Despachado<small>SIMULADO · DRY-RUN</small></div>
+    <div class="head"><div class="id" id="dId"></div><h1 id="dT"></h1></div>
+    <div class="route">
+      <div><div class="k">Localidade</div><div class="v" id="dLoc"></div></div>
+      <div class="arrow">→</div>
+      <div><div class="k">Fila de destino</div><div class="v" id="dGrp"></div></div>
+    </div>
+    <div class="grid2">
+      <div><div class="k">Confiança</div><div class="v" id="dConf"></div></div>
+      <div><div class="k">Origem da decisão</div><div class="v">Regras locais</div></div>
+      <div><div class="k">RITM</div><div class="v" id="dRitm"></div></div>
+      <div><div class="k">Por quê</div><div class="v" id="dWhy"></div></div>
+    </div>
+    <div class="patch"><span class="k">Ao despachar, enviar (PATCH único)</span><div id="dPatch"></div></div>
+    <div class="actions">
+      <button class="go" id="go"><span id="goTxt"></span><span class="hint" id="goHint">Mantenha pressionado para despachar</span><span class="hold" id="hold"></span></button>
+      <button class="edit" id="edit">Editar</button>
+    </div>
+  </section>
+</div>
+
+<script>
+/* dados de exemplo (mesma forma da API real; sample data) */
+const DATA=[
+ {id:'INC4003560',t:'Servidor sem conexão',loc:'Jaboatão',grp:'AMS-TI-CFTV-JAB',conf:100,ritm:'não',why:'regra #13 (Jaboatão)',
+  patch:[['state','2'],['assignment_group','ac7a11d0…1946'],['short_description','Jaboatão - [CFTV] - Servidor sem conexão','warn'],['category','network'],['cmdb_ci','ca5ddf09…193b'],['work_notes','Encaminhado para equipe.']],note:'Título fora do padrão: confira antes.'},
+ {id:'INC9000001',t:'Câmera PIR064 sem imagem',loc:'Piracicaba',grp:'AMS-TI-CFTV-PIR',conf:100,ritm:'não',why:'regra #3 (PIR)',
+  patch:[['state','2'],['assignment_group','287a11d0…5955'],['short_description','Piracicaba - Câmera PIR064 sem conexão'],['category','network'],['cmdb_ci','5a5ddf09…a9a9'],['work_notes','Encaminhado para equipe.']]},
+ {id:'INC9000008',t:'Servidor não comunica com SCOM',loc:'Projects',grp:'AMS-TI-CFTV-PRJ',conf:100,ritm:'não',why:'alerta SCOM',
+  patch:[['state','2'],['assignment_group','a49b56af…3c7d'],['título/categoria','preservados'],['work_notes','Encaminhado para equipe.']],note:'Alerta: validar por ping antes de tratar.'},
+ {id:'INC9000007',t:'Câmera tela preta · Itatiaçu',loc:'Serra Azul',grp:null,conf:100,ritm:'não',why:'regra #18',block:'Serra Azul só move com o seu OK explícito.'},
+ {id:'INC9000006',t:'Câmera sem imagem no galpão',loc:null,grp:null,conf:0,ritm:'não',why:'sem pista de localidade',block:'Sem destino: crie ou ajuste uma regra. Nada será movido.'}
+];
+let cur=0;const done=new Set();
+const $=id=>document.getElementById(id);
+function renderList(){
+  $('list').innerHTML=DATA.map((d,i)=>`
+   <div class="ticket ${i===cur?'sel':''} ${done.has(d.id)?'done':''}" data-i="${i}">
+     <div class="stub">${d.id.slice(3)}</div>
+     <div class="body"><div class="id">${d.id}</div><div class="t">${d.t}</div>
+       <div class="loc">${d.loc??'sem localidade'} ${d.grp?'→ '+d.grp:''}</div></div>
+     <div class="side"><div class="pct">${d.conf}%</div>${done.has(d.id)?'<span class="tag">despachado</span>':d.block?'<span class="tag block">bloqueado</span>':''}</div>
+   </div>`).join('');
+  document.querySelectorAll('.ticket').forEach(el=>el.onclick=()=>{cur=+el.dataset.i;show()});
+  $('npend').textContent=DATA.filter(d=>!done.has(d.id)).length;
+}
+function show(){
+  const d=DATA[cur];renderList();$('stamp').classList.remove('on');
+  $('dId').textContent=d.id;$('dT').textContent=d.t;
+  $('dLoc').textContent=d.loc??'Sem localidade';$('dGrp').textContent=d.grp??'—';
+  $('dConf').textContent=d.conf+'%';$('dRitm').textContent=d.ritm;$('dWhy').textContent=d.why;
+  $('dPatch').innerHTML=d.block?`<em>${d.block}</em>`:d.patch.map(([k,v,w])=>`${k}: ${w?'<em>'+v+'</em>':v}`).join('<br>')+(d.note?`<br><em>! ${d.note}</em>`:'');
+  const dis=!!d.block||done.has(d.id);
+  $('go').disabled=dis;$('edit').disabled=done.has(d.id);
+  $('goTxt').textContent=done.has(d.id)?'Já despachado':d.block?'Bloqueado':'Despachar';
+  $('goHint').style.display=dis?'none':'block';
+}
+/* segurar 0,9 s para confirmar: gesto deliberado, evita clique acidental */
+let t0=0,raf=0;
+function tick(){const p=Math.min((performance.now()-t0)/900,1);$('hold').style.width=p*100+'%';if(p>=1){fire();return}raf=requestAnimationFrame(tick)}
+function start(){if($('go').disabled)return;t0=performance.now();raf=requestAnimationFrame(tick)}
+function stop(){cancelAnimationFrame(raf);$('hold').style.width='0'}
+function fire(){stop();done.add(DATA[cur].id);$('stamp').classList.add('on');renderList();$('go').disabled=true;$('goTxt').textContent='Já despachado';$('goHint').style.display='none'}
+const g=$('go');['mousedown','touchstart'].forEach(e=>g.addEventListener(e,start));['mouseup','mouseleave','touchend'].forEach(e=>g.addEventListener(e,stop));
+g.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat)start()});g.addEventListener('keyup',stop);
+setInterval(()=>$('clock').textContent=new Date().toLocaleString('pt-BR'),1000);$('clock').textContent=new Date().toLocaleString('pt-BR');
+show();
+</script>
+</body>
+</html>

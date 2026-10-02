@@ -1,0 +1,59 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+ENV/
+
+# Env
+.env
+.env.local
+*.env
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dashboard/build/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+data/browser_profile/
+data/sn_session.json
+data/servidores.csv
+data/evidencias/
+data/digifort_cache.json
+data/digifort_credenciais.json
+
+# Build
+dashboard/dist/
+dashboard/.vite/
+.pytest_cache/
+dist/
+
+# Claude Code (local config)
+.claude/
+
+# Arquivos sensíveis
+A4\ CHAMADOS.oft
+ServiceNow.csv
+cftv-agent-arquivo/

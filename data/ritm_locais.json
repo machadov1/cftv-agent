@@ -1,0 +1,161 @@
+{
+ "_fonte": "cmn_location 'CFTV - ...' (scripts/inspect_ritm_item.py, 01/10/2026)",
+ "locais": [
+  {
+   "nome": "CFTV - AMS/ECA",
+   "sys_id": "d870bdfa1bec52108da111761a4bcbff"
+  },
+  {
+   "nome": "CFTV - Barra Mansa",
+   "sys_id": "cea0313e1bec52108da111761a4bcb20"
+  },
+  {
+   "nome": "CFTV - BBA",
+   "sys_id": "80091bd13b1403908c9f67dc73e45aa6"
+  },
+  {
+   "nome": "CFTV - BBA - CTG",
+   "sys_id": "8327db953b9003908c9f67dc73e45a09"
+  },
+  {
+   "nome": "CFTV - BBA - FAI",
+   "sys_id": "c5e9df153b5403908c9f67dc73e45ac2"
+  },
+  {
+   "nome": "CFTV - BBA - OSA",
+   "sys_id": "194a1b593b5403908c9f67dc73e45a43"
+  },
+  {
+   "nome": "CFTV - BBA - SAB",
+   "sys_id": "acaa5b5d3b5403908c9f67dc73e45a43"
+  },
+  {
+   "nome": "CFTV - BMB - ITA",
+   "sys_id": "11b8dfdd3bd003908c9f67dc73e45a9d"
+  },
+  {
+   "nome": "CFTV - BMB - SUM",
+   "sys_id": "7d59d7d93b1403908c9f67dc73e45a52"
+  },
+  {
+   "nome": "CFTV - CDB Belo Horizonte",
+   "sys_id": "e0a925303bfc6a1078ebd764c3e45ab3"
+  },
+  {
+   "nome": "CFTV - CDB Diadema",
+   "sys_id": "c7d139be1bec52108da111761a4bcbf4"
+  },
+  {
+   "nome": "CFTV - CDB Guarulhos",
+   "sys_id": "243239be1bec52108da111761a4bcba3"
+  },
+  {
+   "nome": "CFTV - CDB Xerém",
+   "sys_id": "40c4f5f21b2092108da111761a4bcb54"
+  },
+  {
+   "nome": "CFTV - Entreposto Alvorada",
+   "sys_id": "5d6328be2bc28bd4835af286f291bf3a"
+  },
+  {
+   "nome": "CFTV - Entreposto Bauru",
+   "sys_id": "70d0313e1bec52108da111761a4bcbf7"
+  },
+  {
+   "nome": "CFTV - Entreposto Candeias",
+   "sys_id": "3131f93e1bec52108da111761a4bcbcd"
+  },
+  {
+   "nome": "CFTV - Entreposto Contagem",
+   "sys_id": "3791797e1bec52108da111761a4bcba0"
+  },
+  {
+   "nome": "CFTV - Entreposto Curitiba",
+   "sys_id": "62b1717e1bec52108da111761a4bcb96"
+  },
+  {
+   "nome": "CFTV - Entreposto Guarulhos",
+   "sys_id": "529ae9703bfc6a1078ebd764c3e45a16"
+  },
+  {
+   "nome": "CFTV - Entreposto Igarapé",
+   "sys_id": "fca328fe2bc28bd4835af286f291bf33"
+  },
+  {
+   "nome": "CFTV - Entreposto Jaboatão",
+   "sys_id": "a8723dbe1bec52108da111761a4bcbac"
+  },
+  {
+   "nome": "CFTV - ESCRITÓRIO RIO DE JANEIRO",
+   "sys_id": "4803ecba2bc28bd4835af286f291bfe0"
+  },
+  {
+   "nome": "CFTV - Fábricas de Telas São Paulo",
+   "sys_id": "4887ed3c3bbc6a1078ebd764c3e45ad8"
+  },
+  {
+   "nome": "CFTV - Juíz de Fora",
+   "sys_id": "ee2331321b2092108da111761a4bcb08"
+  },
+  {
+   "nome": "CFTV - Maracanaú",
+   "sys_id": "ab3339321b2092108da111761a4bcbd5"
+  },
+  {
+   "nome": "CFTV - Mina do Andrade",
+   "sys_id": "45633d321b2092108da111761a4bcb65"
+  },
+  {
+   "nome": "CFTV - Mina Serra Azul",
+   "sys_id": "13c339721b2092108da111761a4bcba0"
+  },
+  {
+   "nome": "CFTV - Monlevade",
+   "sys_id": "aeff5d703b3c6a1078ebd764c3e45ab0"
+  },
+  {
+   "nome": "CFTV - Pátio Metálicos Iracemapolis",
+   "sys_id": "eb42f1fe1bec52108da111761a4bcb05"
+  },
+  {
+   "nome": "CFTV - Piracicaba",
+   "sys_id": "d334fd721b2092108da111761a4bcbef"
+  },
+  {
+   "nome": "CFTV - Projects",
+   "sys_id": "3435e5343bbc6a1078ebd764c3e45ad7"
+  },
+  {
+   "nome": "CFTV - Resende",
+   "sys_id": "7c7431f21b2092108da111761a4bcb79"
+  },
+  {
+   "nome": "CFTV - Rio das Pedras",
+   "sys_id": "0fe6a93c3bbc6a1078ebd764c3e45abd"
+  },
+  {
+   "nome": "CFTV - Sabará",
+   "sys_id": "ba84bdb21b2092108da111761a4bcb38"
+  },
+  {
+   "nome": "CFTV - Sitrel - Três Lagoas",
+   "sys_id": "25966db83bbc6a1078ebd764c3e45a9f"
+  },
+  {
+   "nome": "CFTV - TREF - Juiz de Fora",
+   "sys_id": "12c2687a2bc28bd4835af286f291bfde"
+  },
+  {
+   "nome": "CFTV - TREF - Resende",
+   "sys_id": "ad5264762bc28bd4835af286f291bf99"
+  },
+  {
+   "nome": "CFTV - UPE CARBONITA",
+   "sys_id": "8687e9f32b66c7d4835af286f291bfe1"
+  },
+  {
+   "nome": "CFTV -BBA - FAC",
+   "sys_id": "74a917513b5403908c9f67dc73e45ab6"
+  }
+ ]
+}

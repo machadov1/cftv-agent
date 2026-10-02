@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/* Mesa de Despacho: papel + tinta (claro) ou grafite (escuro). Traço estrutural pesado (--c-rule),
+   hairline suave (--c-line) e cores semânticas fixas por estado. */
+:root {
+  color-scheme: light;
+  --c-bg: #dfe1e4;      /* fundo: cinza claro */
+  --c-panel: #f5f6f7;   /* superfície (painéis, tickets) */
+  --c-panel2: #e9eaec;  /* faixa: cabeçalhos, linhas alternadas, hover */
+  --c-line: #c4c7cc;
+  --c-rule: #101010;
+  --c-ink: #101010;
+  --c-mute: #5d626b;
+  --c-accent: #1636e0;   /* cobalto: ação / informação */
+  --c-ok: #0b6b3a;       /* despachado */
+  --c-warn: #b86e00;     /* dry-run / atenção */
+  --c-bad: #e2231a;      /* pendente / bloqueio */
+  --c-mock: #a21caf;     /* mock / LLM */
+  --c-invert: #101010;
+  --c-invert-ink: #f5f6f7;
+  --c-sn: #3ddc84;       /* botão ServiceNow: verde vivo com texto preto (mesmo nos dois temas) */
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #1f2226;      /* fundo: grafite (escuro, não preto) */
+  --c-panel: #2a2e33;   /* superfície */
+  --c-panel2: #33383e;  /* faixa: cabeçalhos, linhas alternadas, hover */
+  --c-line: #454b52;
+  --c-rule: #7d848c;    /* traço estrutural: cinza médio, não branco */
+  --c-ink: #dcdfe3;
+  --c-mute: #9aa1a9;
+  --c-accent: #8ea2f5;
+  --c-ok: #4cc38a;
+  --c-warn: #e8a23a;
+  --c-bad: #f06b5f;
+  --c-mock: #d98ce6;
+  --c-invert: #4a5058;  /* aba ativa / botão segurar: cinza, não bloco branco */
+  --c-invert-ink: #f0f2f4;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-panel: var(--c-panel);
+  --color-panel2: var(--c-panel2);
+  --color-line: var(--c-line);
+  --color-rule: var(--c-rule);
+  --color-ink: var(--c-ink);
+  --color-mute: var(--c-mute);
+  --color-accent: var(--c-accent);
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-bad: var(--c-bad);
+  --color-mock: var(--c-mock);
+  --color-invert: var(--c-invert);
+  --color-invert-ink: var(--c-invert-ink);
+  --color-sn: var(--c-sn);
+
+  /* Texto pequeno +25% para monitores grandes (xs 12->15, sm 14->16 para manter a hierarquia) */
+  --text-xs: 0.9375rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.4;
+
+  --font-display: Bahnschrift, "Arial Narrow", "Franklin Gothic Medium", "Segoe UI", Arial, sans-serif;
+  --font-sans: Bahnschrift, "Segoe UI", Arial, sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", "Lucida Console", ui-monospace, monospace;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { scrollbar-width: thin; scrollbar-color: var(--c-line) transparent; }
+
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* Papel pautado (bloco do PATCH) */
+.ruled {
+  background-image: repeating-linear-gradient(180deg, transparent 0 21px, color-mix(in srgb, var(--c-ink) 9%, transparent) 21px 22px);
+}
+
+/* Carimbo */
+.stamp {
+  position: absolute; right: 24px; top: 46%;
+  border: 6px solid var(--c-bad); color: var(--c-bad);
+  padding: 6px 16px; text-align: center; line-height: 1;
+  font-family: var(--font-display); font-weight: 800; font-size: 44px; text-transform: uppercase; letter-spacing: 0.04em;
+  transform: rotate(-9deg); opacity: 0.92; pointer-events: none; mix-blend-mode: multiply; z-index: 5;
+}
+:root[data-theme="dark"] .stamp { mix-blend-mode: normal; }
+.stamp small { display: block; margin-top: 4px; font-family: var(--font-mono); font-weight: 400; font-size: 12px; letter-spacing: 0.14em; }
+.stamp.fire { animation: stamp 0.42s cubic-bezier(0.2, 0.9, 0.2, 1) both; }
+@keyframes stamp {
+  0% { opacity: 0; transform: rotate(-9deg) scale(3); }
+  60% { opacity: 1; transform: rotate(-9deg) scale(0.96); }
+  100% { opacity: 0.92; transform: rotate(-9deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stamp.fire { animation: none; }
+  .pulse-dot { animation: none; }
+}
+
+/* Linhas alternadas: contraste leve para leitura de listas longas */
+.zebra > :nth-child(even):not([aria-pressed="true"]) { background-color: var(--c-panel2); }
+tbody.zebra > tr:nth-child(even) { background-color: var(--c-panel2); }

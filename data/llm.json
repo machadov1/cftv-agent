@@ -1,0 +1,16 @@
+{
+  "_comentario": "Única via de IA: o 9router local (OpenAI-compatível). Disponibilidade e escolha de modelos ficam no 9router. A chave fica no .env, na variável indicada em api_key_env.",
+  "providers": [
+    {
+      "id": "9router",
+      "nome": "9router (gateway local)",
+      "base_url": "http://localhost:20128/v1",
+      "api_key_env": "NINEROUTER_API_KEY",
+      "model": "ocz/mimo-v2.6-flash-free",
+      "vision_model": "ocz/mimo-v2.6-flash-free",
+      "fallback_models": [],
+      "enabled": true,
+      "timeout": 120
+    }
+  ]
+}

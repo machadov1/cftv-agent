@@ -1,0 +1,242 @@
+"""Teste de câmera via Digifort: localizar a câmera pelo 'Número do Objeto', ver se voltou, tirar snapshot, anexar e
+registrar a work note de encerramento. Funciona com incidente da fila local ou qualquer incidente já em andamento
+(lido do ServiceNow). Nunca muda estado nem encerra o incidente."""
+import re
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+from backend import db, digifort, servidores
+from backend.config import config, ROOT
+from backend.payload import camera_codes
+from backend.rules_engine import engine
+from backend.servicenow_api import sn_api, SNAuthError
+
+router = APIRouter(tags=["camera"])
+EVID = ROOT / "data" / "evidencias"
+MAX_CAMERAS = 4
+
+
+class CameraIn(BaseModel):
+    localidade: str | None = None  # quando não dá para descobrir sozinho (ou para corrigir)
+
+
+class NotaIn(BaseModel):
+    texto: str
+
+
+def _safe(s: str) -> str:
+    return re.sub(r"[^\w.\-]", "_", s)
+
+
+def _file(inc_number: str, code: str):
+    return EVID / f"snapshot_{_safe(inc_number)}_{_safe(code)}.jpg"
+
+
+def _localidade_do_grupo(grupo: str | None) -> str | None:
+    g = (grupo or "").strip().lower()
+    if not g:
+        return None
+    for r in engine.rules:
+        if r.get("localidade") and (r.get("grupo_display") or "").lower() == g:
+            return r["localidade"]
+    return None
+
+
+def _resolve(n: str, localidade: str | None = None) -> dict:
+    """Dados mínimos do incidente: da fila local, ou do ServiceNow se já está em andamento e nunca passou por aqui."""
+    n = n.upper()
+    inc = db.get_incident(n)
+    if inc:
+        short, desc, cam = inc.get("short_description") or "", inc.get("description") or "", inc.get("camera_codigo")
+        uloc, sys_id, estado, grupo = inc.get("u_incident_location"), inc["sys_id"], inc.get("status"), inc.get("grupo_display")
+    else:
+        try:
+            sn = sn_api.get_incident(n)
+            if not sn:
+                raise HTTPException(status_code=404, detail="Incidente não encontrado no ServiceNow")
+            short, desc = sn.get("short_description") or "", sn.get("description") or ""
+            cam = sn_api.get_camera_code(sn.get("sys_id"))
+        except SNAuthError:
+            raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
+        sys_id, estado, grupo, uloc = sn.get("sys_id"), sn.get("state"), sn.get("assignment_group"), sn.get("u_incident_location")
+    codes = camera_codes(cam, short, desc)
+    # localidade: a informada > a salva > o campo do ServiceNow / regras (inclui prefixo aprendido) > grupo atual
+    achada = localidade or (inc or {}).get("localidade")
+    if not achada:
+        achada = engine.apply_rules({"short_description": short, "description": desc, "u_incident_location": uloc or "",
+                                     "camera_codigo": cam or ""})["localidade"] or _localidade_do_grupo(grupo)
+    return {"incident_number": n, "sys_id": sys_id, "titulo": short, "descricao": desc, "estado": estado, "grupo": grupo,
+            "localidade": achada, "codes": codes[:MAX_CAMERAS], "camera_codigo": cam, "local": bool(inc)}
+
+
+def _pronto(info: dict) -> None:
+    if not digifort.configured():
+        raise HTTPException(status_code=409, detail="Digifort não configurado: defina DIGIFORT_USER e DIGIFORT_PASSWORD no .env")
+    if not info["codes"]:
+        raise HTTPException(status_code=422, detail="Incidente sem código de câmera utilizável ('Número do Objeto' vazio ou em texto livre)")
+
+
+@router.get("/digifort/status")
+def digifort_status():
+    return {"configurado": digifort.configured(), "porta": config.DIGIFORT_PORT, "servidores": servidores.status()}
+
+
+@router.get("/digifort/teste")
+def digifort_teste(ip: str):
+    """Teste de conexão/credencial num servidor (versão da API). Somente leitura."""
+    if not re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", ip):
+        raise HTTPException(status_code=422, detail="Informe um IP")
+    try:
+        return digifort.version(ip)
+    except digifort.DigifortError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/incidents/{incident_number}/camera/check")
+def camera_check(incident_number: str, body: CameraIn | None = None):
+    """Para cada câmera do incidente: acha o servidor da unidade, confere se voltou e, se sim, guarda um snapshot.
+    Não escreve no ServiceNow. Retorna logs de debug."""
+    digifort.clear_debug_log()
+    info = _resolve(incident_number, body.localidade if body else None)
+    _pronto(info)
+    if not info["localidade"]:
+        raise HTTPException(status_code=422, detail="Não descobri a unidade deste incidente: escolha a localidade para procurar a câmera")
+    srv = servidores.cftv_da_unidade(info["localidade"])
+    if not srv:
+        raise HTTPException(status_code=422, detail=f"Nenhum servidor CFTV de '{info['localidade']}' na lista de servidores")
+
+    EVID.mkdir(parents=True, exist_ok=True)
+    cameras = []
+    for code in info["codes"]:
+        item = {"codigo": code, "achada": None, "working": None, "active": None, "inactive_s": None,
+                "snapshot": False, "erro": None}
+        loc = digifort.locate(code, srv)
+        item.update(tentados=loc["tentados"], candidatas=loc["candidatas"], erros_servidores=loc["erros"])
+        if not loc["achada"]:
+            ok, falhas = len(loc["tentados"]) - len(loc["erros"]), len(loc["erros"])
+            if loc["candidatas"]:
+                item["erro"] = "Câmera ambígua: várias candidatas, confira o nome"
+            elif ok == 0:
+                item["erro"] = "Nenhum servidor da unidade respondeu (VPN, porta ou credencial)"
+            elif falhas:
+                item["erro"] = (f"Não está nos {ok} servidor(es) que responderam; {falhas} não responderam ou recusaram a "
+                                "credencial, e ela pode estar num deles")
+            else:
+                item["erro"] = "Câmera não encontrada nos servidores da unidade"
+            cameras.append(item)
+            continue
+        cam = loc["achada"]
+        item["achada"] = cam
+        try:
+            item.update(digifort.camera_state(cam["ip"], cam["nome"]))
+            if item["active"] is False:
+                item["erro"] = "Câmera DESATIVADA no cadastro do Digifort (não é queda de rede): ative ou confira com quem administra o servidor; snapshot não gerado"
+            elif item["working"] is False:
+                item["erro"] = "Câmera ainda sem sinal no Digifort; snapshot não gerado"
+            else:
+                _file(info["incident_number"], code).write_bytes(digifort.snapshot(cam["ip"], cam["nome"]))
+                item["snapshot"] = True
+        except digifort.DigifortError as e:
+            item["erro"] = str(e)
+        cameras.append(item)
+
+    db.add_history(info["incident_number"], "snapshot",
+                   "; ".join(f"{c['codigo']}: " + ("ok" if c["snapshot"] else c["erro"] or "?") for c in cameras), False, 0)
+    return {"incidente": {k: info[k] for k in ("incident_number", "titulo", "estado", "grupo", "localidade")},
+            "cameras": cameras, "dry_run": config.SERVICENOW_DRY_RUN or config.SERVICENOW_MOCK,
+            "debug": digifort.get_debug_log()}
+
+
+@router.get("/incidents/{incident_number}/camera/snapshot/{code}")
+def camera_snapshot(incident_number: str, code: str):
+    path = _file(incident_number.upper(), code)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Snapshot ainda não gerado")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+def _arquivos(info: dict):
+    return [(c, p) for c, p in ((c, _file(info["incident_number"], c)) for c in info["codes"]) if p.exists()]
+
+
+@router.post("/incidents/{incident_number}/camera/attach")
+def camera_attach(incident_number: str):
+    """Anexa ao incidente os snapshots já gerados (pula os que já estão anexados). Respeita o dry-run."""
+    info = _resolve(incident_number)
+    if not info["sys_id"]:
+        raise HTTPException(status_code=409, detail="sys_id ausente")
+    files = _arquivos(info)
+    if not files:
+        raise HTTPException(status_code=422, detail="Nenhum snapshot gerado para este incidente")
+    try:
+        existentes = sn_api.list_attachment_names(info["sys_id"])
+        if existentes is None:
+            raise HTTPException(status_code=502, detail="Não consegui listar os anexos atuais; nada foi enviado")
+        resultado = []
+        for code, path in files:
+            if path.name in existentes:
+                resultado.append({"codigo": code, "arquivo": path.name, "status": "já anexado"})
+            elif sn_api.attach_file(info["sys_id"], path.name, path.read_bytes()):
+                resultado.append({"codigo": code, "arquivo": path.name, "status": "anexado"})
+            else:
+                resultado.append({"codigo": code, "arquivo": path.name, "status": "falhou"})
+    except SNAuthError:
+        raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
+    dry = config.SERVICENOW_DRY_RUN or config.SERVICENOW_MOCK
+    db.add_history(info["incident_number"], "snapshot_anexo",
+                   f"dry_run={dry} " + "; ".join(f"{r['arquivo']}={r['status']}" for r in resultado), False, 0)
+    return {"resultado": resultado, "dry_run": dry}
+
+
+def closing_text(codes: list[str]) -> str:
+    """Texto padrão da work note de encerramento por câmera restabelecida (mesmo formato da skill: causa base / descrição)."""
+    if len(codes) == 1:
+        cam, verbo = f"Câmera {codes[0]}", "testada"
+    else:
+        cam, verbo = f"Câmeras {' / '.join(codes)}", "testadas"
+    return ("Causa base: Câmera sem comunicação com o servidor de monitoramento.\n"
+            f"Descrição: {cam} {verbo} no Digifort e transmitindo normalmente. "
+            "Evidência (print) anexada ao incidente. Incidente encerrado sem necessidade de intervenção.")
+
+
+@router.get("/incidents/{incident_number}/camera/closing-draft")
+def closing_draft(incident_number: str):
+    """Texto padrão de encerramento com as câmeras que geraram snapshot. Não grava nada."""
+    info = _resolve(incident_number)
+    com_print = [c for c, _ in _arquivos(info)]
+    if not com_print:
+        raise HTTPException(status_code=422, detail="Nenhum snapshot gerado: teste a câmera antes")
+    return {"texto": closing_text(com_print), "faltando": [c for c in info["codes"] if c not in com_print]}
+
+
+@router.post("/incidents/{incident_number}/camera/closing-note")
+def closing_note(incident_number: str, body: NotaIn):
+    """Registra a work note de encerramento (só work note: não muda estado nem encerra). Exige o print já anexado.
+    Não repete a nota se já existir. Respeita o dry-run."""
+    info = _resolve(incident_number)
+    texto = body.texto.strip()
+    if len(texto) < 20:
+        raise HTTPException(status_code=422, detail="Texto muito curto")
+    if not info["sys_id"]:
+        raise HTTPException(status_code=409, detail="sys_id ausente")
+    files = _arquivos(info)
+    dry = config.SERVICENOW_DRY_RUN or config.SERVICENOW_MOCK
+    try:
+        anexos = sn_api.list_attachment_names(info["sys_id"])
+        if anexos is None:
+            raise HTTPException(status_code=502, detail="Não consegui conferir os anexos; nada foi enviado")
+        if not dry and not any(p.name in anexos for _, p in files):
+            raise HTTPException(status_code=409, detail="Anexe o print ao incidente antes de registrar a nota de encerramento")
+        atual = sn_api.get_current(info["sys_id"])
+    except SNAuthError:
+        raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
+    if atual is None:
+        raise HTTPException(status_code=502, detail="Não consegui ler o incidente; nada foi enviado")
+    if texto.splitlines()[-1].strip().lower() in (atual.get("work_notes") or "").lower():
+        return {"status": "já registrada", "dry_run": dry}
+    if not sn_api.patch_incident(info["sys_id"], {"work_notes": texto}):
+        raise HTTPException(status_code=502, detail="Falha ao gravar a work note no ServiceNow")
+    db.add_history(info["incident_number"], "nota_encerramento", f"dry_run={dry} {texto[:200]}", False, 0)
+    return {"status": "registrada", "dry_run": dry}

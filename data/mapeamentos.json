@@ -1,0 +1,133 @@
+{
+  "Barra Mansa": {
+    "cidade": "Barra Mansa",
+    "ic_nome": "LCB-SRV-CFTV-BMA01",
+    "ic": "b95d9f09db297740f80f9972ca96199a",
+    "ritm_local": "CFTV - Barra Mansa"
+  },
+  "Bauru": {
+    "cidade": "Bauru",
+    "ic_nome": "LCB-SRV-CFTV-BAU01",
+    "ic": "b55d9f09db297740f80f9972ca961991",
+    "ritm_local": "CFTV - Entreposto Bauru"
+  },
+  "João Monlevade": {
+    "cidade": "Monlevade",
+    "ic_nome": "LCB-SRV-CFTV-MDE01",
+    "ic": "5a5ddf09db297740f80f9972ca961979",
+    "ritm_local": "CFTV - Monlevade"
+  },
+  "Resende": {
+    "cidade": "Resende",
+    "ic_nome": "LCB-SRV-CFTV-RES-PAT",
+    "ic": "6e5d1349db297740f80f9972ca96191d",
+    "ritm_local": "CFTV - Resende"
+  },
+  "Juiz de Fora": {
+    "cidade": "Juiz de Fora",
+    "ic_nome": "LCB-SRV-CFTV-JDF01",
+    "ic": "865ddf09db297740f80f9972ca961951",
+    "ritm_local": "CFTV - TREF - Juiz de Fora"
+  },
+  "Piracicaba": {
+    "cidade": "Piracicaba",
+    "ic_nome": "LCB-SRV-CFTV-PIR01",
+    "ic": "5a5ddf09db297740f80f9972ca9619a9",
+    "ritm_local": "CFTV - Piracicaba"
+  },
+  "Piracicaba (LORA)": {
+    "cidade": "Piracicaba",
+    "ic_nome": "LCB-TAG LORA SISTEMA PIRACICABA",
+    "ic": "1a1a874d97fb9d98aa0479cfe153af51",
+    "ritm_local": "CFTV - Piracicaba"
+  },
+  "João Monlevade (LORA)": {
+    "cidade": "Monlevade",
+    "ic_nome": "LCB-TAG LORA SISTEMA MONLEVADE",
+    "ic": "92ce7a4197379d98aa0479cfe153af4f",
+    "ritm_local": "CFTV - Monlevade"
+  },
+  "Guarulhos": {
+    "cidade": "Guarulhos",
+    "ic_nome": "LCB-SRV-CFTV-GUA",
+    "ic": "0e5ddf09db297740f80f9972ca96191c"
+  },
+  "Sabará": {
+    "cidade": "Sabará",
+    "ic_nome": "LCB-SRV-CFTV-SAB",
+    "ic": "625d1349db297740f80f9972ca961927",
+    "ritm_local": "CFTV - Sabará"
+  },
+  "Candeias": {
+    "cidade": "Candeias",
+    "ic_nome": "LCB-SRV-CFTV-CAN",
+    "ic": "315d9f09db297740f80f9972ca9619c6",
+    "ritm_local": "CFTV - Entreposto Candeias"
+  },
+  "Iracemápolis": {
+    "cidade": "Iracemápolis",
+    "ic_nome": "LCB-SRV-CFTV-IRA",
+    "ic": "c65ddf09db297740f80f9972ca961932",
+    "ritm_local": "CFTV - Pátio Metálicos Iracemapolis"
+  },
+  "Jaboatão": {
+    "cidade": "Jaboatão",
+    "ic_nome": "LCB-SRV-CFTV-JAB",
+    "ic": "ca5ddf09db297740f80f9972ca96193b",
+    "ritm_local": "CFTV - Entreposto Jaboatão"
+  },
+  "Vega do Sul": {
+    "cidade": "Vega do Sul",
+    "ic_nome": "FCB-AMV OUTROS EQUIPAMENTOS",
+    "ic": "4588111f1b8f10104ef531901a4bcba6",
+    "business_service": "0cf9130597b7dd98aa0479cfe153afc0"
+  },
+  "Rio das Pedras": {
+    "cidade": "Rio das Pedras",
+    "ic_nome": "LCB-SRV-CFTV-GUA (fallback)",
+    "ic": "0e5ddf09db297740f80f9972ca96191c",
+    "ritm_local": "CFTV - Rio das Pedras"
+  },
+  "Serra Azul": {
+    "cidade": "Serra Azul",
+    "ic_nome": "LCB - CFTV LONGOS",
+    "ic": "00a507e21bff851465717bff034bcbd4",
+    "ritm_local": "CFTV - Mina Serra Azul"
+  },
+  "Igarapé": {
+    "cidade": "Igarapé",
+    "ic_nome": "LCB-SRV-CFTV-GUA (fallback)",
+    "ic": "0e5ddf09db297740f80f9972ca96191c",
+    "ritm_local": "CFTV - Entreposto Igarapé"
+  },
+  "Tubarão": {
+    "cidade": "Tubarão",
+    "ic_nome": "FCB-SRV-CFTV-TUB",
+    "ic": "2a5d1349db297740f80f9972ca96196e"
+  },
+  "Projects (monitoramento)": {
+    "cidade": null,
+    "ic_nome": null,
+    "ic": null,
+    "alerta": true,
+    "ritm_local": "CFTV - Projects"
+  },
+  "Mina do Andrade": {
+    "cidade": "Mina do Andrade",
+    "ic_nome": "LCB-SRV-CFTV-AND01",
+    "ic": "a37f083f3b5c7a548c9f67dc73e45a50",
+    "ritm_local": "CFTV - Mina do Andrade"
+  },
+  "AM PECEM": {
+    "cidade": "Pecém",
+    "ic_nome": "LCB-SRV-CFTV-PEC01",
+    "ic": "1bcc7ad91bc78290febdeac82d4bcbe8",
+    "ritm_local": "CFTV - Pecém"
+  },
+  "Belgo Contagem": {
+    "cidade": "Contagem",
+    "ic_nome": "LCB-SRV-CFTV-CTG01",
+    "ic": "811ec73e2b04c310835af286f291bf07",
+    "ritm_local": "CFTV - Contagem"
+  }
+}

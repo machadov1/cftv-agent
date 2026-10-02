@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Direção B · Tabuleiro de Unidades</title>
+<style>
+  /* Cobalto + branco frio + laranja sinal. Despachar = levar a ficha até a casa certa (arrastar ou selecionar + clicar). */
+  :root{--bg:#e9eef8;--cobalt:#1636e0;--ink:#0b0f24;--orange:#ff5a1f;--white:#fff;--mute:#5a6486;--ok:#0f9d58;--lock:#0b0f24;
+        --f:Bahnschrift,"Segoe UI",Arial,sans-serif;--mono:Consolas,monospace;--r:16px}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--f);min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+  header{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;background:var(--cobalt);color:#fff}
+  header h1{font-size:24px;font-weight:800;letter-spacing:.01em;font-stretch:condensed;text-transform:uppercase}
+  header h1 span{color:#ffd0bf}
+  .chips{display:flex;gap:8px;font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase}
+  .chips b{background:#fff;color:var(--cobalt);padding:4px 10px;border-radius:99px}
+  .chips b.dry{background:var(--orange);color:#fff}
+  main{display:grid;grid-template-columns:330px 1fr;gap:18px;padding:18px 22px}
+  .tray{background:var(--white);border-radius:var(--r);padding:16px;border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);align-self:start}
+  .tray h2,.board h2{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:12px}
+  .score{display:flex;gap:10px;margin-bottom:14px}
+  .score div{flex:1;background:var(--bg);border-radius:12px;padding:8px 10px}
+  .score .n{font-size:38px;font-weight:800;line-height:1;color:var(--cobalt)}
+  .score .l{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--mute)}
+  .token{background:var(--white);border:3px solid var(--ink);border-radius:14px;padding:10px 12px;margin-bottom:10px;cursor:grab;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s;position:relative;width:100%;text-align:left;font-family:var(--f);color:inherit;display:block}
+  .token:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink)}
+  .token.sel{background:var(--orange);color:#fff;transform:rotate(-1.5deg) translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink)}
+  .token .id{font-family:var(--mono);font-size:11px;font-weight:700;opacity:.8}
+  .token .t{font-size:18px;font-weight:700;line-height:1.1;font-stretch:condensed;margin:2px 0}
+  .token .sug{font-family:var(--mono);font-size:11px;margin-top:4px}
+  .token.dragging{opacity:.4}
+  .token.gone{display:none}
+  .token.blocked .sug::before{content:"LACRE · ";color:var(--orange);font-weight:700}
+  .board{display:flex;flex-direction:column}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .tile{border:3px solid var(--ink);border-radius:var(--r);background:var(--white);padding:12px 14px;min-height:118px;position:relative;transition:transform .15s,background .15s,box-shadow .15s;text-align:left;font-family:var(--f);color:inherit;cursor:default;display:flex;flex-direction:column;justify-content:space-between}
+  .tile .name{padding-right:44px;font-size:24px;font-weight:800;font-stretch:condensed;line-height:1}
+  .tile .grp{font-family:var(--mono);font-size:11px;color:var(--mute)}
+  .tile .cnt{position:absolute;right:12px;top:10px;min-width:34px;height:34px;border-radius:99px;background:var(--cobalt);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
+  .tile .cnt.zero{background:var(--bg);color:var(--mute)}
+  .tile.locked{background:var(--lock);color:#fff;border-style:dashed}
+  .tile.locked .grp{color:#aab}
+  .tile.locked .name::after{content:" ▦";font-size:16px;opacity:.7}
+  .armed .tile{cursor:pointer}
+  .tile.target{background:#fff2ea;border-color:var(--orange);box-shadow:0 0 0 5px rgba(255,90,31,.35);animation:pulse 1s infinite;transform:scale(1.03)}
+  .tile.locked.target{background:var(--lock);border-color:var(--orange);color:#fff}
+  .tile.locked.target .grp{color:#ffb59a}
+  .tile.over{background:var(--orange);color:#fff;transform:scale(1.07)}
+  .tile.over .grp{color:#fff}
+  .tile.wrong{animation:shake .35s}
+  .tile.pop{animation:pop .4s}
+  @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(255,90,31,.12)}}
+  @keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12) rotate(-2deg)}100%{transform:scale(1)}}
+  .patchbar{margin-top:18px;border:3px solid var(--ink);border-radius:var(--r);background:var(--ink);color:#fff;padding:14px 18px;font-family:var(--mono);font-size:12px;line-height:1.6;min-height:96px}
+  .patchbar b{color:#ffb59a}
+  .msg{margin-top:12px;font-weight:700;min-height:24px}
+  .msg.bad{color:#c2260c}.msg.ok{color:var(--ok)}
+  .key{margin-top:12px;background:var(--orange);color:#fff;border:3px solid var(--ink);border-radius:12px;padding:10px 16px;font-family:var(--f);font-weight:800;font-size:16px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);display:none}
+  .key.show{display:inline-block}
+  @media(max-width:860px){main{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>CFTV Agent <span>· Tabuleiro</span></h1>
+  <div class="chips"><b>API online</b><b>ServiceNow conectado</b><b class="dry">DRY-RUN · nada é gravado</b></div>
+</header>
+<main id="main">
+  <aside class="tray">
+    <h2>Fichas na fila</h2>
+    <div class="score"><div><div class="n" id="left">5</div><div class="l">na fila</div></div><div><div class="n" id="sent">0</div><div class="l">despachadas</div></div></div>
+    <div id="tokens"></div>
+  </aside>
+  <section class="board">
+    <h2>Unidades · leve a ficha até a casa certa</h2>
+    <div class="tiles" id="tiles"></div>
+    <div class="patchbar" id="patch">Selecione ou arraste uma ficha. A casa sugerida pelas regras acende em laranja.</div>
+    <div class="msg" id="msg" role="status"></div>
+    <button class="key" id="key">Dar o OK para Serra Azul (mantenha 1 s)</button>
+  </section>
+</main>
+<script>
+const TILES=[['Piracicaba','AMS-TI-CFTV-PIR'],['Resende','AMS-TI-CFTV-DBC'],['Barra Mansa','AMS-TI-CFTV-DBB'],['Juiz de Fora','AMS-TI-CFTV-JUA'],['Jaboatão','AMS-TI-CFTV-JAB'],['João Monlevade','AMS-TI-CFTV-MDE'],['Bauru','AMS-TI-CFTV-BBD'],['Sabará','AMS-TI-CFTV-SAB'],['Projects','AMS-TI-CFTV-PRJ · alertas'],['Serra Azul','AMS-TI-CFTV-XDF · com OK']];
+const INC=[
+ {id:'INC4003560',t:'Servidor sem conexão',to:'Jaboatão',patch:'state 2 · grupo JAB · título "Jaboatão - [CFTV] - Servidor sem conexão" (fora do padrão: confira) · work note'},
+ {id:'INC9000001',t:'Câmera PIR064 sem imagem',to:'Piracicaba',patch:'state 2 · grupo PIR · título "Piracicaba - Câmera PIR064 sem conexão" · IC PIR01 · work note'},
+ {id:'INC9000008',t:'Servidor não comunica com SCOM',to:'Projects',patch:'state 2 · grupo PRJ · título e categoria preservados · validar por ping antes'},
+ {id:'INC9000007',t:'Câmera tela preta · Itatiaçu',to:'Serra Azul',lock:true,patch:'Serra Azul: setar o IC muda a severidade. Só com o OK explícito do Victor.'},
+ {id:'INC9000006',t:'Câmera sem imagem no galpão',to:null,patch:'Sem pista de localidade: nada será movido. Ajuste ou crie uma regra.'}
+];
+const counts={};let cur=null,unlocked=false;const $=i=>document.getElementById(i);
+function tiles(){ $('tiles').innerHTML=TILES.map(([n,g])=>`<button class="tile ${n==='Serra Azul'&&!unlocked?'locked':''}" data-n="${n}"><span class="cnt ${counts[n]?'':'zero'}">${counts[n]||0}</span><span class="name">${n}</span><span class="grp">${g}</span></button>`).join('');
+  document.querySelectorAll('.tile').forEach(el=>{
+    el.ondragover=e=>{e.preventDefault();el.classList.add('over')};el.ondragleave=()=>el.classList.remove('over');
+    el.ondrop=e=>{e.preventDefault();el.classList.remove('over');drop(el.dataset.n)};el.onclick=()=>{if(cur)drop(el.dataset.n)};});
+  mark();}
+function tokens(){ $('tokens').innerHTML=INC.map((d,i)=>`<button class="token ${d.lock?'blocked':''} ${d.gone?'gone':''} ${cur===i?'sel':''}" draggable="true" data-i="${i}"><div class="id">${d.id}</div><div class="t">${d.t}</div><div class="sug">${d.to?'sugestão → '+d.to:'sem destino'}</div></button>`).join('');
+  document.querySelectorAll('.token').forEach(el=>{const i=+el.dataset.i;
+    el.onclick=()=>select(cur===i?null:i);
+    el.ondragstart=e=>{select(i);e.dataTransfer.setData('text/plain',i);el.classList.add('dragging')};el.ondragend=()=>el.classList.remove('dragging');});
+  $('left').textContent=INC.filter(d=>!d.gone).length;$('sent').textContent=INC.filter(d=>d.gone).length;}
+function mark(){document.querySelectorAll('.tile').forEach(el=>el.classList.toggle('target',cur!==null&&INC[cur].to===el.dataset.n));$('main').classList.toggle('armed',cur!==null);}
+function select(i){cur=i;tokens();mark();$('key').classList.toggle('show',i!==null&&INC[i].lock&&!unlocked);
+  $('patch').innerHTML=i===null?'Selecione ou arraste uma ficha. A casa sugerida pelas regras acende em laranja.':`<b>${INC[i].id}</b> — ao soltar na casa certa:<br>${INC[i].patch}`;$('msg').textContent='';}
+function say(t,c){$('msg').textContent=t;$('msg').className='msg '+c}
+function drop(n){ if(cur===null)return;const d=INC[cur],el=[...document.querySelectorAll('.tile')].find(x=>x.dataset.n===n);
+  if(!d.to){say('Esta ficha não tem destino sugerido. Nada foi movido.','bad');return wobble(el)}
+  if(d.lock&&!unlocked){say('Casa lacrada: dê o OK explícito para Serra Azul primeiro.','bad');return wobble(el)}
+  if(n!==d.to){say(`A sugestão das regras é ${d.to}. Solte lá, ou edite o destino de propósito (fora deste protótipo).`,'bad');return wobble(el)}
+  d.gone=true;counts[n]=(counts[n]||0)+1;cur=null;tiles();tokens();$('key').classList.remove('show');
+  const t=[...document.querySelectorAll('.tile')].find(x=>x.dataset.n===n);t.classList.add('pop');
+  say(`${d.id} despachado para ${n} (simulado, dry-run).`,'ok');$('patch').textContent='Pronto. Nada foi gravado no ServiceNow.';}
+function wobble(el){if(!el)return;el.classList.remove('wrong');void el.offsetWidth;el.classList.add('wrong')}
+/* OK explícito: segurar 1 s */
+let h=0;const k=$('key');const go=()=>{h=setTimeout(()=>{unlocked=true;k.classList.remove('show');tiles();say('Serra Azul destravada por você. Agora solte a ficha.','ok')},1000)};
+['mousedown','touchstart'].forEach(e=>k.addEventListener(e,go));['mouseup','mouseleave','touchend'].forEach(e=>k.addEventListener(e,()=>clearTimeout(h)));
+tiles();tokens();
+</script>
+</body>
+</html>

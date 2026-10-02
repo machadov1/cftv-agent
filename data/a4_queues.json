@@ -1,0 +1,155 @@
+{
+  "filas_a4": {
+    "AMS-TI-A4-MDE": {
+      "unidade": "João Monlevade",
+      "sigla": "MDE",
+      "grupo": "f81995ad471de910da2fe6ae436d43f7",
+      "ativo": true
+    },
+    "AMS-TI-A4-JDF": {
+      "unidade": "Juiz de Fora",
+      "sigla": "JDF",
+      "grupo": "b4b8d9e5471de910da2fe6ae436d4304",
+      "ativo": true
+    },
+    "AMS-TI-A4-RES": {
+      "unidade": "Resende",
+      "sigla": "RES",
+      "grupo": "0bbb1121471da910cf74dd98436d4387",
+      "ativo": true
+    },
+    "AMS-TI-A4-JAB": {
+      "unidade": "Jaboatão",
+      "sigla": "JAB",
+      "grupo": "26711fd0934ee294e3e07ed548373c1c",
+      "ativo": true
+    },
+    "AMS-TI-A4-XER": {
+      "unidade": "Xerém",
+      "sigla": "XER",
+      "grupo": "42225e2c47316910cf74dd98436d4337",
+      "ativo": true
+    },
+    "AMS-TI-A4-CNW": {
+      "unidade": "Contagem",
+      "sigla": "CNW",
+      "grupo": "90167e592b4e22d4f122f2def291bf5b",
+      "ativo": true
+    },
+    "AMS-TI-A4-CAN": {
+      "unidade": "Candeias",
+      "sigla": "CAN",
+      "grupo": "b5163dfe1bb286d0febdeac82d4bcbc7",
+      "ativo": true
+    },
+    "AMS-TI-A4-BBD": {
+      "unidade": "Bauru",
+      "sigla": "BBD",
+      "grupo": "b9d47e952b0e22d4f122f2def291bfce",
+      "ativo": true
+    },
+    "AMS-TI-A4-BMA": {
+      "unidade": "Barra Mansa",
+      "sigla": "BMA",
+      "grupo": "3911566897b12550318071671153afce",
+      "ativo": true
+    },
+    "AMS-TI-A4-SAB": {
+      "unidade": "Sabará",
+      "sigla": "SAB",
+      "grupo": "c17bd1a9479de910da2fe6ae436d43d3",
+      "ativo": true
+    },
+    "AMS-TI-A4-GUA": {
+      "unidade": "Guarulhos",
+      "sigla": "GUA",
+      "grupo": "7016a0273b1dfe108c9f67dc73e45aac",
+      "ativo": true
+    },
+    "AMS-TI-A4-MRC": {
+      "unidade": "Maracanaú",
+      "sigla": "MRC",
+      "grupo": "a4748027dbc2ce1ca263576ed39619c6",
+      "ativo": true
+    },
+    "AMS-TI-A4-JOT": {
+      "unidade": "Curitiba",
+      "sigla": "JOT",
+      "grupo": "78a5be912b4e22d4f122f2def291bf63",
+      "ativo": true
+    },
+    "AMS-TI-A4-FSP": {
+      "unidade": "Fábrica de telas Guarulhos",
+      "sigla": "FSP",
+      "grupo": "fab1162847316910cf74dd98436d43c9",
+      "ativo": true
+    },
+    "AMS-TI-LORA-MDE": {
+      "unidade": "João Monlevade",
+      "sigla": "LORA-MDE",
+      "grupo": "01ff796e1bcc3810a7cefeaf034bcb29",
+      "ativo": true
+    },
+    "AMS-TI-LORA-PIR": {
+      "unidade": "Piracicaba",
+      "sigla": "LORA-PIR",
+      "grupo": "693c5415db9c6090e56ee7dcd3961910",
+      "ativo": true
+    },
+    "AMS-TI-4OLHOS-JOT": {
+      "unidade": "Curitiba",
+      "sigla": "4OLHOS-JOT",
+      "grupo": "e522006f1bc20ed8c9661f861a4bcb02",
+      "ativo": true
+    },
+    "AMS-TI-4OLHOS-BBD": {
+      "unidade": "Bauru",
+      "sigla": "4OLHOS-BBD",
+      "grupo": "f57344a7db42ce1ca263576ed396193c",
+      "ativo": true
+    },
+    "AMS-TI-4OLHOS-CNW": {
+      "unidade": "Contagem",
+      "sigla": "4OLHOS-CNW",
+      "grupo": "6921c42bdb4e8e1ca263576ed396198a",
+      "ativo": true
+    },
+    "AMS-TI-4OLHOS-JAB": {
+      "unidade": "Jaboatão",
+      "sigla": "4OLHOS-JAB",
+      "grupo": "3f200867db0e8e1ca263576ed3961999",
+      "ativo": true
+    }
+  },
+  "email_template": {
+    "para": "servicedesk@alertsystem.com.br",
+    "cc": "felipe.borges@alertsystem.com.br",
+    "template": "C:\\PROJETOS\\cftv-agent\\A4 CHAMADOS.oft",
+    "assunto": "Incidente A4 - {INCIDENT} - ArcelorMittal ({LOCALIDADE})",
+    "corpo": [
+      "{SAUDACAO}!",
+      "",
+      "Encaminho abaixo o incidente aberto na plataforma ServiceNow para tratamento:",
+      "",
+      "Descrição do problema (Descrito pelo solicitante):",
+      "{DESCRICAO}",
+      "",
+      "Dados do solicitante:",
+      "  * Usuário: {SOLICITANTE}",
+      "  * E-mail: {EMAIL}",
+      "  * Telefone/WhatsApp: ",
+      "  * Unidade/Segmento: {UNIDADE}",
+      "",
+      "SLA: {SLA}",
+      "",
+      "Fico à disposição para quaisquer dúvidas ou informações adicionais.",
+      "",
+      "Att,",
+      "",
+      "Victor Basílio Machado",
+      "Departamento Técnico",
+      "C +55 11 95903-6030"
+    ],
+    "origem": "Texto do modelo A4 CHAMADOS.oft (02/10/2026). Abre pelo app de e-mail padrão (mailto), nunca envia."
+  }
+}

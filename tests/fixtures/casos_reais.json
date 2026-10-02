@@ -1,0 +1,40 @@
+{
+  "casos": [
+    {
+      "numero": "INC4005199",
+      "titulo": "[CFTV] - Câmeras sem conexão",
+      "descricao": "camera da entrada da MR4 danificada.",
+      "localidade": null
+    },
+    {
+      "numero": "INC4001141",
+      "titulo": "[Outros Sistemas] -  - Falha de Funcionalidade",
+      "descricao": "Câmeras da unidade de AM- Piracicaba sem conexão. Tanto para a equipe do CFTV quanto para o pátio.",
+      "localidade": "Piracicaba"
+    },
+    {
+      "numero": "INC4002833",
+      "titulo": "[CFTV] - Câmeras sem conexão",
+      "descricao": "Link de acesso as câmeras de Resende apresentam instabilidade na conexão. Favor verificar com urgência.",
+      "localidade": "Resende"
+    },
+    {
+      "numero": "INC4004469",
+      "titulo": "[CFTV] - Câmeras sem conexão",
+      "descricao": "GRAB/CFTV - Câmeras 05, 06 e 07 sem conexão.",
+      "localidade": null
+    },
+    {
+      "numero": "INC4004480",
+      "titulo": "[BR-SD] CFTV LONGOS - PROBLEMAS EM GERAL",
+      "descricao": "** PARA DIRECIONAMENTO, PRENCHER O IC DE ACORDO A LOCALIDADE DE LONGOS BUSQUE POR  SRV-CFTV*\r\nEscolha por localidade, como exemplo:  LCB - SRV-CFTV-PIR01 - Caso a fila esteja em branco, encaminhe para AMS-TI-CFTV **\r\n\r\n** PARA INCIDENTES CRITICOS, SIGA AS INSTRUÇÕES DA FILA AMS-TI-CFTV **\r\n\r\nDescrição do problema: Duas cameras de CTFV estão com problema de conexão, fica aparecendo como \"tentando reconectar\".  Sendo elas: PR421  e PR420 ambos na area da logistica, estacionamento TL2\r\n\r\nNome do solicitante:Morais, Mauricio\r\nTelefone do solicitante: 1933023382\r\nLocal do ponto de imagem (localidade): Piracicaba\r\nNome do ponto de imagem (nome da câmera que aparece no mosaico): PR421  e PR420\r\nLocal da visualização do ponto de imagem (local onde o solicitante está visualizando a câmera):\r\nCódigo do equipamento: PR421  e PR420\r\nErro ocorre somente para uma câmera? Duas cameras da mesma area \r\nA câmera esta ligando? (S/N) NA\r\nForam verificados os cabos do equipamento? (S/N) NA\r\n\r\nTelefone:1933023382\r\nTelefone Alternativo:\r\nHorário de Trabalho: ADM \r\nUsina: Piracicaba \r\nSetor/ Referencia: SEGURANCA PATRIMONIAL / Portaria Principal \r\n\r\n",
+      "localidade": "Piracicaba"
+    },
+    {
+      "numero": "INC4003560",
+      "titulo": "[CFTV] - Servidor sem conexão",
+      "descricao": "servidores de AM - Jaboatão fora de acesso",
+      "localidade": "Jaboatão"
+    }
+  ]
+}

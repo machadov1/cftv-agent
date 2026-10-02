@@ -1,0 +1,98 @@
+{
+  "_comentario": "Fonte: board 'Incidentes - CFTV/A4' (vtb 082e2e5a2b2ab2d0835af286f291bf26). Edite aqui para o Painel acompanhar uma fila nova.",
+  "filtro": {
+    "comeca_com": [
+      "AMS-TI-CFTV"
+    ],
+    "contem": [
+      "LORA",
+      "alert",
+      "AMPE-TI-CFTV",
+      "AMS-TI-A4",
+      "AMS-TI-4OLHOS",
+      "FCB-INFRA-CFTV-PEC"
+    ],
+    "estados_fora": [
+      6,
+      7,
+      24
+    ]
+  },
+  "equipes": [
+    {
+      "sigla": "JDF",
+      "grupos": [
+        "AMS-TI-CFTV-JUA"
+      ]
+    },
+    {
+      "sigla": "MDE",
+      "grupos": [
+        "AMS-TI-CFTV-MDE"
+      ]
+    },
+    {
+      "sigla": "PIR",
+      "grupos": [
+        "AMS-TI-CFTV-PIR"
+      ]
+    },
+    {
+      "sigla": "RSD",
+      "grupos": [
+        "AMS-TI-CFTV-DBC"
+      ]
+    },
+    {
+      "sigla": "BMA",
+      "grupos": [
+        "AMS-TI-CFTV-DBB"
+      ]
+    },
+    {
+      "sigla": "PEC",
+      "grupos": [
+        "FCB-INFRA-CFTV-PEC",
+        "AMPE-TI-CFTV"
+      ]
+    },
+    {
+      "sigla": "LORA",
+      "prefixos": [
+        "AMS-TI-LORA"
+      ]
+    },
+    {
+      "sigla": "A4",
+      "prefixos": [
+        "AMS-TI-A4"
+      ]
+    },
+    {
+      "sigla": "4 OLHOS",
+      "prefixos": [
+        "AMS-TI-4OLHOS"
+      ]
+    },
+    {
+      "sigla": "Geral",
+      "grupos": [
+        "AMS-TI-CFTV"
+      ]
+    }
+  ],
+  "outras": "Outras",
+  "filtro_encerrados_mes": {
+    "comeca_com": [
+      "AMS-TI-CFTV"
+    ],
+    "contem": [
+      "LORA",
+      "alert",
+      "AMPE-TI-CFTV",
+      "AMS-TI-A4",
+      "AMS-TI-4OLHOS"
+    ]
+  },
+  "_estados": "1 Novo, 2 Em Andamento, 3 Em Espera, 4 Aguardando Info, 5 Aguardando Evidência, 6 Resolvido, 7 Encerrado, 8 Aguardando Mudança (NÃO é cancelado), 9 Aguardando Fornecedor, 24 Cancelado"
+}
