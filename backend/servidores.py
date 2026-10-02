@@ -123,3 +123,36 @@ def topologia() -> list[dict]:
 def servidor_cftv(ip: str) -> dict | None:
     """O servidor CFTV da lista com este IP (o painel só consulta IPs que estão na lista)."""
     return next((r for r in _load() if r["ip"] == ip and "cftv" in (r["tipo"] or "").lower()), None)
+
+
+def config_read() -> dict:
+    """Lê {ip: {disabled: bool}} de data/servidores_config.json, cria vazio se não existir."""
+    import json
+    cfg_path = ROOT / "data" / "servidores_config.json"
+    if cfg_path.exists():
+        with open(cfg_path) as f:
+            return json.load(f)
+    return {}
+
+
+def config_write(cfg: dict) -> None:
+    """Grava {ip: {disabled: bool}} em data/servidores_config.json."""
+    import json
+    cfg_path = ROOT / "data" / "servidores_config.json"
+    with open(cfg_path, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+def is_disabled(ip: str) -> bool:
+    """Retorna True se o servidor está desabilitado."""
+    cfg = config_read()
+    return cfg.get(ip, {}).get("disabled", False)
+
+
+def set_disabled(ip: str, disabled: bool) -> None:
+    """Ativa/desativa um servidor."""
+    cfg = config_read()
+    if ip not in cfg:
+        cfg[ip] = {}
+    cfg[ip]["disabled"] = disabled
+    config_write(cfg)

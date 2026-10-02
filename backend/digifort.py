@@ -65,6 +65,35 @@ def _cred(ip: str) -> tuple[str, str]:
     return c.get("usuario") or config.DIGIFORT_USER, c.get("senha") or config.DIGIFORT_PASSWORD
 
 
+def cred_read() -> dict:
+    """Lê {ip: {usuario, senha}} de data/digifort_credenciais.json, cria vazio se não existir."""
+    try:
+        return json.loads(CRED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def cred_write(creds: dict) -> None:
+    """Grava {ip: {usuario, senha}} em data/digifort_credenciais.json."""
+    CRED_PATH.write_text(json.dumps(creds, indent=2), encoding="utf-8")
+
+
+def cred_set(ip: str, usuario: str, senha: str) -> None:
+    """Define credencial customizada para um IP."""
+    creds = cred_read()
+    if not creds.get(ip):
+        creds[ip] = {}
+    creds[ip].update(usuario=usuario, senha=senha)
+    cred_write(creds)
+
+
+def cred_delete(ip: str) -> None:
+    """Remove credencial customizada (volta a usar a padrão do .env)."""
+    creds = cred_read()
+    creds.pop(ip, None)
+    cred_write(creds)
+
+
 SNAPSHOT_TIMEOUT = 30  # s: a 1ª imagem de uma câmera leva ~6 s (o servidor abre o vídeo); as seguintes, < 1 s
 
 

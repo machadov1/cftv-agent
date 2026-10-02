@@ -3,6 +3,7 @@ import { getHealth, getLlmConfig, saveLlmConfig, testLlm, getLlmModels, getServi
 import LoadingSpinner from '../components/LoadingSpinner';
 import RulesPage from './RulesPage';
 import HistoryPage from './HistoryPage';
+import ServidoresConfigPage from './ServidoresConfigPage';
 import Secoes from '../components/Secoes';
 import { Badge, Button, inputClass } from '../components/ui';
 
@@ -202,6 +203,7 @@ function Geral() {
 
 const SECOES = [
   { id: 'geral', label: 'Geral', Page: Geral },
+  { id: 'servidores', label: 'Servidores', Page: ServidoresConfigPage },
   { id: 'regras', label: 'Regras', Page: RulesPage },
   { id: 'historico', label: 'Histórico', Page: HistoryPage },
 ];

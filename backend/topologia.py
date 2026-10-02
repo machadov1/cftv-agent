@@ -3,11 +3,16 @@
 Disponibilidade = câmeras transmitindo / câmeras ativas (desativadas no cadastro não contam). Na unidade, a mesma câmera
 em mais de um servidor (principal + reserva) conta uma vez, com o melhor estado entre as cópias.
 """
+import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from backend import digifort, servidores
+from backend.config import ROOT
 
 PARALELO = 8  # servidores lidos ao mesmo tempo (um por vez por servidor)
+CACHE_TTL = 600  # 10 min em segundos
+CACHE_PATH = ROOT / "data" / "topologia_cache.json"
 
 
 def _pct(ok: int, ativas: int) -> float | None:
@@ -51,10 +56,42 @@ def resumir(unidades: list[dict], leituras: dict[str, dict]) -> list[dict]:
     return out
 
 
+def _cache_read() -> dict | None:
+    """Lê cache persistente se ainda válido (< 10 min)."""
+    if not CACHE_PATH.exists():
+        return None
+    try:
+        with open(CACHE_PATH) as f:
+            data = json.load(f)
+        if time.time() - data.get("lido_em", 0) < CACHE_TTL:
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _cache_write(data: dict) -> None:
+    """Grava cache persistente com timestamp."""
+    data["lido_em"] = time.time()
+    try:
+        with open(CACHE_PATH, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
 def ler_todos(forcar: bool = False) -> dict:
-    """Lê (em paralelo, com o cache do inventário) todos os servidores CFTV com IP e devolve o mapa resumido."""
+    """Lê (em paralelo, com o cache do inventário) todos os servidores CFTV com IP e devolve o mapa resumido.
+    Usa cache persistente se < 10 min (a menos que forcar=True)."""
+    # Tenta cache persistente
+    if not forcar:
+        cached = _cache_read()
+        if cached:
+            cached["cache"] = True  # marca que veio do cache
+            return cached
+
     unidades = servidores.topologia()
-    ips = sorted({s["ip"] for u in unidades for s in u["servidores"] if s["ip"]})
+    ips = sorted({s["ip"] for u in unidades for s in u["servidores"] if s["ip"] and not servidores.is_disabled(s["ip"])})
 
     def ler(ip):
         try:
@@ -70,7 +107,12 @@ def ler_todos(forcar: bool = False) -> dict:
     res = resumir(unidades, leituras)
     todas = [u["cameras"] for u in res]
     ativas, ok = sum(c["ativas"] for c in todas), sum(c["ok"] for c in todas)
-    return {"unidades": res, "digifort_configurado": digifort.configured(),
-            "geral": {"disponibilidade": _pct(ok, ativas), "ativas": ativas, "ok": ok,
-                      "servidores_total": sum(u["servidores_total"] for u in res),
-                      "servidores_respondendo": sum(u["servidores_respondendo"] for u in res)}}
+
+    result = {"unidades": res, "digifort_configurado": digifort.configured(),
+              "geral": {"disponibilidade": _pct(ok, ativas), "ativas": ativas, "ok": ok,
+                        "servidores_total": sum(u["servidores_total"] for u in res),
+                        "servidores_respondendo": sum(u["servidores_respondendo"] for u in res)},
+              "cache": False}
+
+    _cache_write(result)
+    return result
