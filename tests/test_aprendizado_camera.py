@@ -119,7 +119,10 @@ def test_nota_de_encerramento_exige_print_anexado_e_nao_repete(client, monkeypat
     monkeypatch.setattr(camera.sn_api, "get_current", lambda sid: {"state": "2", "work_notes": "\n".join(notas)})
     monkeypatch.setattr(camera.sn_api, "patch_incident", lambda sid, f: notas.append(f["work_notes"]) or True)
     txt = client.get("/incidents/INC1/camera/closing-draft").json()["texto"]
-    assert "Câmera BM-LAM-CLI-048 testada" in txt and txt.startswith("Causa base:")
+    assert txt == ("Causa raiz: Câmera BM-LAM-CLI-048 sem conexão.\n\n"
+                   "Análise: Realizada verificação no Digifort, com identificação de que a câmera se encontra operando "
+                   "normalmente no momento da checagem. Evidência (print) anexada ao incidente.\n\n"
+                   "Encerramento: Incidente encerrado.")
     assert client.post("/incidents/INC1/camera/closing-note", json={"texto": txt}).status_code == 409  # sem anexo
     anexos.append(camera._file("INC1", "BM-LAM-CLI-048").name)
     assert client.post("/incidents/INC1/camera/closing-note", json={"texto": txt}).json()["status"] == "registrada"

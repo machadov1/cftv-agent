@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend import db, digifort, servidores
+from backend import db, digifort, servidores, textos
 from backend.config import config, ROOT
 from backend.payload import camera_codes
 from backend.rules_engine import engine
@@ -31,6 +31,7 @@ class CameraIn(BaseModel):
 
 class NotaIn(BaseModel):
     texto: str
+    validacao: str | None = None  # 'Nome Sobrenome' -> 'Validação: Sobrenome, Nome.' no Encerramento
 
 
 def _safe(s: str) -> str:
@@ -219,25 +220,43 @@ def camera_attach(incident_number: str):
     return {"resultado": resultado, "dry_run": dry}
 
 
-def closing_text(codes: list[str]) -> str:
-    """Texto padrão da work note de encerramento por câmera restabelecida (mesmo formato da skill: causa base / descrição)."""
-    if len(codes) == 1:
-        cam, verbo = f"Câmera {codes[0]}", "testada"
-    else:
-        cam, verbo = f"Câmeras {' / '.join(codes)}", "testadas"
-    return ("Causa base: Câmera sem comunicação com o servidor de monitoramento.\n"
-            f"Descrição: {cam} {verbo} no Digifort e transmitindo normalmente. "
-            "Evidência (print) anexada ao incidente. Incidente encerrado sem necessidade de intervenção.")
+def closing_text(codes: list[str], causa: str | None = None, sem_sinal: list[str] | None = None) -> str:
+    """Encerramento de câmera testada no Digifort (manual: verificado e já operando). Câmera sem print vira pendência
+    com [RITM] a preencher."""
+    return textos.camera_verificada(causa, codes, sem_sinal)
+
+
+def _causa(info: dict) -> str | None:
+    from backend.payload import mapa_localidade
+    cidade = mapa_localidade(info.get("localidade")).get("cidade") or info.get("localidade")
+    return textos.causa_do_titulo(info.get("titulo") or "", cidade)
 
 
 @router.get("/incidents/{incident_number}/camera/closing-draft")
 def closing_draft(incident_number: str):
-    """Texto padrão de encerramento com as câmeras que geraram snapshot. Não grava nada."""
+    """Texto de encerramento no padrão do manual com as câmeras que geraram snapshot. Não grava nada."""
     info = _resolve(incident_number)
     com_print = [c for c, _ in _arquivos(info)]
     if not com_print:
         raise HTTPException(status_code=422, detail="Nenhum snapshot gerado: teste a câmera antes")
-    return {"texto": closing_text(com_print), "faltando": [c for c in info["codes"] if c not in com_print]}
+    faltando = [c for c in info["codes"] if c not in com_print]
+    texto = closing_text(com_print, _causa(info), faltando)
+    return {"texto": texto, "faltando": faltando, "avisos": textos.revisar(texto)[1]}
+
+
+def _ja_registrada(texto: str, atual: dict) -> bool:
+    """A nota já está no incidente? Compara a 1ª linha (Causa raiz, com as câmeras): o Encerramento é igual em todas."""
+    primeira = next((l.strip() for l in texto.splitlines() if l.strip()), "")
+    return bool(primeira) and primeira.lower() in (atual.get("work_notes") or "").lower()
+
+
+def preparar_texto(texto: str, validacao: str | None) -> tuple[str, list[str]]:
+    """Revisão do manual + Validação; recusa colchete de modelo não preenchido (nada vai ao ServiceNow)."""
+    t, avisos = textos.revisar(textos.com_validacao(texto.strip(), validacao))
+    falta = textos.bloqueios(t)
+    if falta:
+        raise HTTPException(status_code=422, detail=f"Preencha {', '.join(falta)} antes de enviar")
+    return t, avisos
 
 
 @router.post("/incidents/{incident_number}/camera/closing-note")
@@ -245,9 +264,9 @@ def closing_note(incident_number: str, body: NotaIn):
     """Registra a work note de encerramento (só work note: não muda estado nem encerra). Exige o print já anexado.
     Não repete a nota se já existir. Respeita o dry-run."""
     info = _resolve(incident_number)
-    texto = body.texto.strip()
-    if len(texto) < 20:
+    if len(body.texto.strip()) < 20:
         raise HTTPException(status_code=422, detail="Texto muito curto")
+    texto, _ = preparar_texto(body.texto, body.validacao)
     if not info["sys_id"]:
         raise HTTPException(status_code=409, detail="sys_id ausente")
     files = _arquivos(info)
@@ -263,7 +282,7 @@ def closing_note(incident_number: str, body: NotaIn):
         raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
     if atual is None:
         raise HTTPException(status_code=502, detail="Não consegui ler o incidente; nada foi enviado")
-    if texto.splitlines()[-1].strip().lower() in (atual.get("work_notes") or "").lower():
+    if _ja_registrada(texto, atual):
         return {"status": "já registrada", "dry_run": dry}
     if not sn_api.patch_incident(info["sys_id"], {"work_notes": texto}):
         raise HTTPException(status_code=502, detail="Falha ao gravar a work note no ServiceNow")
@@ -280,9 +299,9 @@ def camera_close(incident_number: str, body: NotaIn):
     from backend.payload import ASSIGNED_TO
     from backend.routes.incidents import CLOSE_CODE
     info = _resolve(incident_number)
-    texto = body.texto.strip()
-    if len(texto) < 20:
+    if len(body.texto.strip()) < 20:
         raise HTTPException(status_code=422, detail="Texto de encerramento muito curto")
+    texto, _ = preparar_texto(body.texto, body.validacao)
     if not info["sys_id"]:
         raise HTTPException(status_code=409, detail="sys_id ausente")
     files = _arquivos(info)
@@ -305,7 +324,7 @@ def camera_close(incident_number: str, body: NotaIn):
         return {"status": "já encerrado", "dry_run": dry, "estado": estado}
     payload = {"state": "6", "close_code": CLOSE_CODE, "close_notes": texto,
                "u_is_recurring_incident": "no", "assigned_to": ASSIGNED_TO}
-    if texto.splitlines()[-1].strip().lower() not in (atual.get("work_notes") or "").lower():
+    if not _ja_registrada(texto, atual):
         payload["work_notes"] = texto  # a nota já registrada não se repete
     try:
         if not sn_api.patch_incident(info["sys_id"], payload):

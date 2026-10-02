@@ -17,7 +17,7 @@ SAIDA = ("Disparando IRA-APP-CFTV02.Americas.mittalco.com [10.58.40.12] com 32 b
          + "Resposta de 10.58.40.12: bytes=32 tempo=3ms TTL=125\n" * 10
          + "Pacotes: Enviados = 10, Recebidos = 10, Perdidos = 0 (0% de perda)")
 PING_OK = {"host": "IRA-APP-CFTV02", "target": "IRA-APP-CFTV02.Americas.mittalco.com", "ip": "10.58.40.12",
-           "perda_percentual": 0, "ok": True, "resolveu": True, "saida": SAIDA}
+           "perda_percentual": 0, "media_ms": 3, "ok": True, "resolveu": True, "saida": SAIDA}
 VAL = {"host": "IRA-APP-CFTV02", "perda": "0", "hora": "15:47", "arquivo": None}
 
 
@@ -37,7 +37,13 @@ def test_imagem_desenhada_da_saida_real(tmp_path, monkeypatch):
 def test_nota_scom_so_com_validacao_recente():
     inc = _alerta()
     f, w = build_first_touch(inc, {**inc, "grupo": "g"}, {"state": "1", "work_notes": ""}, {"scom": VAL})
-    assert f["work_notes"] == scom.WORK_NOTE.format(host="IRA-APP-CFTV02")
+    assert f["work_notes"] == (  # manual: heartbeat com evidência de ping, hostname completo, Causa raiz
+        "Causa raiz: Falha de heartbeat do serviço System Center Management no servidor "
+        "IRA-APP-CFTV02.Americas.mittalco.com.\n\n"
+        "Análise: Realizado teste de conectividade via ping ao servidor, com 0% de perda de pacotes. "
+        "Evidência anexada ao incidente.\n\n"
+        "Resolução: Serviço verificado e validado, operando normalmente sem necessidade de intervenção.\n\n"
+        "Encerramento: Incidente encerrado.")
     assert any("validação SCOM" in x for x in w) and "short_description" not in f
     f, _ = build_first_touch(inc, {**inc, "grupo": "g"}, {"state": "1", "work_notes": ""}, {"scom": None})
     assert f["work_notes"] == "Encaminhado para equipe."
@@ -49,8 +55,8 @@ def test_camera_testada_e_editada_e_severidade():
     final = {"localidade": "Piracicaba", "grupo": "g"}
     cam = {"codigos": ["PIR064"], "hora": "15:40"}
     f, _ = build_first_touch(inc, final, None, {"camera": cam})
-    assert f["work_notes"] == ("Encaminhado para equipe. Teste da câmera PIR064 às 15:40: imagem normalizada no Digifort, "
-                               "print anexado.")
+    assert f["work_notes"] == ("Encaminhado para equipe. Realizada verificação da câmera PIR064 às 15:40 no Digifort, "
+                               "operando normalmente no momento da checagem. Evidência anexada ao incidente.")
     f, _ = build_first_touch(inc, {**final, "work_notes": "Texto meu."}, None, {"camera": cam})
     assert f["work_notes"] == "Texto meu."  # editada vence
     f, _ = build_first_touch(inc, {**final, "impact": "4", "urgency": "4"}, None)
@@ -116,11 +122,13 @@ def test_despacho_scom_anexa_e_posta_validacao(client):
     assert r["ok"] and r["evidencia"] == "ping_INC1_IRA-APP-CFTV02.png"
     assert client.get("/incidents/INC1/ping/evidencia").headers["content-type"] == "image/png"
     p = client.get("/incidents/INC1/payload").json()
-    assert p["fields"]["work_notes"].startswith("Causa base") and p["anexo"] == "ping_INC1_IRA-APP-CFTV02.png"
+    nota = p["fields"]["work_notes"]
+    assert nota.startswith("Causa raiz: Falha de heartbeat") and p["anexo"] == "ping_INC1_IRA-APP-CFTV02.png"
+    assert "via ping ao servidor (10.58.40.12), com 0% de perda de pacotes e tempo médio de 3ms" in nota
     r = client.post("/incidents/INC1/approve", json={"impact": "4", "urgency": "4"}).json()
     assert r["anexo"] == "anexado" and client.estado["anexos"] == ["ping_INC1_IRA-APP-CFTV02.png"]
     enviado = client.estado["patches"][-1]
-    assert enviado["work_notes"].startswith("Causa base") and "impacto alterado para 4" in enviado["work_notes"]
+    assert enviado["work_notes"].startswith("Causa raiz") and "impacto alterado para 4" in enviado["work_notes"]
     assert (enviado["impact"], enviado["state"]) == ("4", "2")
     # já despachado: registrar não duplica anexo nem nota
     r = client.post("/incidents/INC1/ping/registrar").json()
@@ -134,8 +142,21 @@ def test_registrar_validacao_em_scom_ja_despachado(client):
     client.post("/incidents/INC1/ping")
     r = client.post("/incidents/INC1/ping/registrar").json()
     assert r["status"] == "registrada" and r["anexo"] == "anexado"
-    assert client.estado["patches"][-1] == {"work_notes": scom.WORK_NOTE.format(host="IRA-APP-CFTV02")}
+    assert client.estado["patches"][-1] == {"work_notes": scom.nota_validacao("IRA-APP-CFTV02", "10.58.40.12", 3)}
     assert client.post("/incidents/INC1/ping/registrar").json()["status"] == "já registrada"
+
+
+def test_media_do_ping_em_portugues_e_ingles(monkeypatch):
+    class P:
+        returncode = 0
+
+        def __init__(self, out):
+            self.stdout = out.encode("cp850")
+    pt = SAIDA + "\nAproximar um número redondo de vezes em milissegundos:\n    Mínimo = 2ms, Máximo = 5ms, Média = 3ms"
+    monkeypatch.setattr(scom.subprocess, "run", lambda *a, **k: P(pt))
+    assert scom.run_ping("IRA-APP-CFTV02")["media_ms"] == 3
+    monkeypatch.setattr(scom.subprocess, "run", lambda *a, **k: P(SAIDA + "\n    Minimum = 1ms, Maximum = 9ms, Average = 4ms"))
+    assert scom.run_ping("IRA-APP-CFTV02")["media_ms"] == 4
 
 
 def test_validacao_vencida_ou_ping_falho_nao_vale(client, monkeypatch):

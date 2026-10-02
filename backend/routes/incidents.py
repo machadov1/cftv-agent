@@ -10,7 +10,7 @@ from backend.servicenow_api import sn_api, SNAuthError
 from backend.analysis import analyze
 from backend.claude_caller import call_claude_for_localidade, call_claude_for_ritm
 from backend.config import config
-from backend import scom, servidores, teams, controle, ritm as ritm_mod, a4
+from backend import scom, servidores, teams, controle, ritm as ritm_mod, a4, textos
 from backend.sn_session import session
 from backend.payload import build_first_touch, already_in_progress, display_title
 from backend import db, fluxo
@@ -124,7 +124,7 @@ def _prepare(incident_number: str, overrides: ApproveIn | None):
     ctx = _contexto(inc)
     fields, warnings = build_first_touch(inc, final, current, ctx)
     val = ctx["scom"]
-    nota_scom = val and (fields.get("work_notes") or "").startswith(scom.WORK_NOTE.format(host=val["host"]))
+    nota_scom = val and (fields.get("work_notes") or "").startswith(scom.nota_de(val))
     return inc, changes, editado, fields, warnings, (val["arquivo"] if nota_scom else None)
 
 @router.get("/{incident_number}/payload")
@@ -189,7 +189,7 @@ def ping_registrar(incident_number: str):
         raise HTTPException(status_code=409, detail=f"Sem ping OK nos últimos {scom.VALIDADE_MIN} min: teste de novo")
     if not inc.get("sys_id"):
         raise HTTPException(status_code=409, detail="sys_id ausente")
-    nota = scom.WORK_NOTE.format(host=val["host"])
+    nota = scom.nota_de(val)
     try:
         atual = sn_api.get_current(inc["sys_id"])
     except SNAuthError:
@@ -256,6 +256,7 @@ def ping_incident(incident_number: str, body: PingIn | None = None, evidence: bo
     res["ficha"] = servidores.find(host)
     db.add_history(incident_number.upper(), "ping",
                    f"host={host} ok={res.get('ok')} perda={res.get('ping', {}).get('perda_percentual')}"
+                   f" ip={res.get('ping', {}).get('ip') or ''} media={res.get('ping', {}).get('media_ms') or ''}"
                    + (f" evid={res['evidencia']}" if is_scom and res.get("evidencia") else ""), False, 0)
     return res
 
@@ -335,13 +336,13 @@ def create_ritm(incident_number: str, body: RitmIn):
             raise HTTPException(status_code=502, detail="Enviado, mas não achei a RITM nova; confira no portal (não reenviar).")
         numero, req = novo["number"], novo.get("req") or ""
 
-    nota = body.descricao.replace("requisição.", f"requisição {numero}.")
+    nota = textos.com_ritm(body.descricao, numero)
     current = sn_api.get_current(inc["sys_id"]) if inc.get("sys_id") else None
     nota_dup = bool(current and numero in (current.get("work_notes") or ""))
     if inc.get("sys_id") and not nota_dup:
         if not sn_api.patch_incident(inc["sys_id"], {"work_notes": nota}):
             raise HTTPException(status_code=502, detail=f"{numero} criada, mas a work note falhou: poste manualmente.")
-    db.add_history(n, "ritm", numero, False, (time.perf_counter() - start) * 1000)
+    db.add_history(n, "ritm", f"{numero} {body.pendencia}".strip(), False, (time.perf_counter() - start) * 1000)
     return {"ok": True, "ritm": numero, "req": req, "simulado": simulado, "work_note": nota,
             "work_note_ja_existia": nota_dup, "duplicidade_ignorada": dup}
 
@@ -360,7 +361,7 @@ def teams_draft(incident_number: str, body: TeamsDraftIn):
         d = ritm_mod.build_draft(inc)
         ident = body.identificado or teams.default_identificado(d["causa"], body.pendencia)
         msg = teams.build_message(inc["incident_number"], teams.primeiro_nome(caller["nome"]), ident, body.ritm,
-                                  len(d["cameras"]))
+                                  d["causa"])
     url = teams.build_url(caller["email"], msg)
     if body.abrir:
         teams.open_draft(url)
@@ -439,15 +440,64 @@ def email_a4_draft(incident_number: str):
 CLOSE_CODE = "Solved"
 
 
+def _ritm_do_incidente(n: str) -> tuple[str, str] | None:
+    """(número, pendência) da última RITM criada pelo agente para o incidente."""
+    h = db.list_history(5, n, "ritm")
+    partes = (h[0].get("resultado") or "").split(" ", 1) if h else []
+    return (partes[0], partes[1] if len(partes) > 1 else "") if partes and partes[0] else None
+
+
+def close_draft_for(inc: dict) -> dict:
+    """Rascunho de encerramento no padrão do manual, pelo que o agente já sabe do caso. Nunca inventa ação: o que
+    falta vem entre colchetes e bloqueia o envio até ser preenchido."""
+    from backend.payload import mapa_localidade, is_access_request
+    from backend.routes import camera as camera_routes
+    n = inc["incident_number"]
+    short, desc = inc.get("short_description") or "", inc.get("description") or ""
+    cidade = mapa_localidade(inc.get("localidade")).get("cidade") or inc.get("localidade")
+    titulo = display_title(inc).get("titulo_padrao") or short
+    causa = textos.causa_do_titulo(titulo, cidade)
+    if scom.is_scom_alert(short, desc):
+        val = scom.ultima_validacao(n)
+        if val:
+            return {"cenario": "scom_ping", "texto": scom.nota_de(val)}
+        host = scom.extract_host(short, desc)
+        fqdn = f"{host}{scom.DOMAIN}" if host else "[HOSTNAME COMPLETO]"
+        return {"cenario": "scom", "texto": textos.montar(
+            f"Falha de heartbeat do serviço System Center Management no servidor {fqdn}",
+            resolucao="Serviço verificado e validado, operando normalmente sem necessidade de intervenção.")}
+    if is_access_request(short, desc):
+        return {"cenario": "acesso", "texto": textos.acesso_encerramento()}
+    ritm = _ritm_do_incidente(n)
+    if ritm:
+        d = ritm_mod.build_draft(inc)
+        return {"cenario": "pendencia", "texto": textos.ritm_descricao(d["causa"], ritm[1] or d["pendencia"], None,
+                                                                       ritm[0], d["sla_proximo"])}
+    try:
+        cam = camera_routes.closing_draft(n)
+        return {"cenario": "camera", "texto": cam["texto"]}
+    except HTTPException:
+        pass
+    return {"cenario": "simples", "texto": textos.simples(causa)}
+
+
+@router.get("/{incident_number}/close-draft")
+def close_draft(incident_number: str):
+    """Rascunho de encerramento (só leitura): {cenario, texto, avisos}."""
+    d = close_draft_for(_get_inc(incident_number))
+    return {**d, "avisos": textos.revisar(d["texto"])[1]}
+
+
 @router.post("/{incident_number}/close")
 def close_incident(incident_number: str, body: dict):
     """Encerra (Resolvido, fluxo 9.3 da skill): state 6, close_code, close_notes e work note. Só incidente da Saída
     (já despachado/tratado); respeita dry-run. Pedido explícito do Victor = gesto de segurar no painel."""
+    from backend.routes.camera import preparar_texto
     inc = _get_inc(incident_number)
     n = inc["incident_number"]
-    texto = (body.get("work_notes") or "").strip()
-    if not texto:
+    if not (body.get("work_notes") or "").strip():
         raise HTTPException(status_code=422, detail="Escreva a nota de encerramento")
+    texto, _ = preparar_texto(body["work_notes"], body.get("validacao"))
     if inc.get("status") == fluxo.ENCERRADO:
         raise HTTPException(status_code=409, detail="Já encerrado")
     if inc.get("status") not in fluxo.SAIDA:

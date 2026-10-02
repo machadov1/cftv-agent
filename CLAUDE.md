@@ -206,7 +206,8 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
 - **Cor por unidade:** `unitColor()` em `components/ui.jsx` (tira do ticket, gráficos). Unidade nova = uma linha no mapa.
 - **Segurança no gesto:** despachar exige **segurar o botão 0,45 s** (`HOLD_MS` em `components/HoldButton.jsx`); na fila, **Shift+clique** seleciona uma faixa,
   **Ctrl+clique** alterna, e uma barra despacha o lote (mesmo gesto, um `/approve` por vez; só pendentes com destino e título padronizado); casos sem destino ficam com o botão hachurado e bloqueado;
-  dry-run sempre visível no cabeçalho; carimbo "DESPACHADO" confirma (simulado ou gravado).
+  dry-run sempre visível no cabeçalho; carimbo "DESPACHADO" confirma o gesto (canto superior, some em 4 s; depois o rodapé
+  "Já despachado" diz o estado: no meio do painel ele cobria o encerramento).
 - **Cabeçalho = régua única:** toda célula (abas, ServiceNow, estado API/IA, relógio, tema, engrenagem, modo de escrita) tem a mesma
   altura, divisória e tipografia. ServiceNow fica logo após as abas, **verde vivo (`--c-sn`) com texto preto**, sempre visível.
   Texto pequeno foi ampliado 25% (`--text-xs` 15px, `--text-sm` 16px, `[11.25px]`, `[12.5px]`, `[13.75px]`).
@@ -228,8 +229,30 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
   SCOM já despachado: "Registrar validação" (`POST /incidents/{n}/ping/registrar`, segurar): anexa + work note, sem mudar estado.
   Lista de servidores em `data/servidores.csv` (export de "Gestão De Servidores", fora do git); `backend/servidores.py` lê só
   colunas seguras, nunca senhas/iLO/chaves; a ficha do servidor citado aparece no detalhe.
+- **Textos no padrão do manual** (`Padrões de Textos de Encerramento — Incidentes CFTV LORA UWB.md`, raiz; regras em
+  `backend/textos.py`, fonte única): blocos Causa raiz > Análise > Resolução > Encaminhamento > Encerramento, um parágrafo
+  cada; "reestabelecer" (nunca "restabelecer"), "Causa raiz" (nunca "Causa base"), Validação "Sobrenome, Nome" na linha de
+  Encerramento, RITM só pelo número. **Regra de ouro**: nunca descrever ação não informada; o que falta fica entre colchetes
+  (`[RITM]`, `[descreva a ação executada]`) e **bloqueia o envio** (422 no backend, botão travado no painel).
+  `textos.revisar` corrige sem comentar (restabelec, Causa base, link de RITM → número, senha → `[credencial]`, CPF →
+  `[CPF]`) em todo envio de encerramento/nota (`/close`, `/camera/close`, `/camera/closing-note`, via
+  `routes/camera.preparar_texto`). Modelos: SCOM heartbeat com ping (`scom.nota_validacao`: hostname completo, IP, 0% e
+  tempo médio, que o `run_ping` lê de "Média"/"Average"), câmera verificada (`textos.camera_verificada`: "operando
+  normalmente no momento da checagem", nunca "reestabelecida"; câmera sem print = Análise em lista + `[RITM]`), acesso
+  via incidente (despacho só com Causa raiz + Análise; "Realizado contato com o solicitante" só no encerramento), RITM
+  (`textos.ritm_descricao`: "Reparo depende de …", Encaminhamento por pendência, linha de SLA se vence em < 24 h,
+  fechamento "com pendência vinculada à requisição."; o número entra só no Encaminhamento via `textos.com_ritm`), Teams
+  (`teams.build_message`: "Boa tarde, Nome! Tudo bem?", "Passando pra te atualizar…", "Qualquer dúvida, fico à
+  disposição!") e e-mail A4 (template fixo de redirecionamento do manual, em `data/a4_queues.json`).
+  **Encerramento da Saída** abre com o modelo do cenário (`GET /incidents/{n}/close-draft`: scom_ping, scom, acesso,
+  pendencia (RITM criada pelo agente, com a pendência gravada no histórico), camera, simples).
+  **Redator com IA** (`backend/redator.py`, `POST /textos/redigir`, componente `Redator.jsx` no encerramento da Saída e no
+  teste de câmera): campo "Rascunho" + botões Enche / Enxuto / Sem req / Um pra cada / Mensagem ao solicitante; o manual
+  inteiro vai como instrução, com nome do solicitante e saudação pelo relógio. Devolve texto (revisado) ou `pergunta`;
+  linhas "AVISO:" do modelo viram avisos. Só redige: o envio continua no botão de segurar. ~13 s pelo 9router.
 - **Nota do despacho** (`payload.build_first_touch(..., contexto)`): editada > validação SCOM recente > câmera testada com print
-  anexado ("Encaminhado para equipe. Teste da câmera X às HH:MM: imagem normalizada no Digifort, print anexado.") > padrão.
+  anexado ("Encaminhado para equipe. Realizada verificação da câmera X às HH:MM no Digifort, operando normalmente no
+  momento da checagem. Evidência anexada ao incidente.") > padrão.
   Impacto/urgência (`ApproveIn.impact`/`urgency`, 1-4, em Editar) vão no PATCH e somam a linha de severidade à nota.
 - **Evidência de câmera (Digifort)** (`backend/digifort.py`, `routes/camera.py`, painel "Evidência da câmera" no detalhe): o
   "Número do Objeto" do incidente (`camera_codigo`, lido do formulário) é procurado como nome de câmera nos servidores CFTV da
@@ -495,21 +518,8 @@ python scripts/setup_db.py
 - **AM PECEM** (regra #22): padrão PEC, PECEM, Pecém → FCB-INFRA-CFTV-PEC | IC: LCB-SRV-CFTV-PEC01
 - **Belgo Contagem** (regra #23): padrão CTG, GATC, Arames, Belgo Contagem → AMS-TI-CFTV-ARAMES-CTG | IC: LCB-SRV-CFTV-CTG01
 
-**Textos padrão (04/10/2026)**
-
-**SCOM heartbeat (fluxo 5.1):**
-```
-Causa raiz: Falha de heartbeat do serviço System Center Management no servidor [HOST].Americas.mittalco.com.
-Resolução: Serviço verificado e validado, operando normalmente sem necessidade de intervenção.
-Encerramento: Incidente encerrado.
-```
-
-**Solicitação de acesso às câmeras (LGPD, encerramento):**
-```
-Acesso às câmeras foi liberado no Digifort conforme solicitado.
-Acesso permitido para o período de 90 dias a partir de hoje, renovável.
-Incidente encerrado.
-```
+**Textos padrão**: ver o manual `Padrões de Textos de Encerramento — Incidentes CFTV LORA UWB.md` (raiz) e
+`backend/textos.py` (seção "Textos no padrão do manual" acima).
 
 ## ⚡ Próximas Fases
 

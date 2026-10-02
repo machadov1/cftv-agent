@@ -4,13 +4,12 @@ import re
 from functools import lru_cache
 
 from backend.config import ROOT
-from backend import scom, a4
+from backend import scom, a4, textos
 from backend.scom import is_auto_alert
 
 WORK_NOTE = "Encaminhado para equipe."
-# skill, fluxo 8: acesso às câmeras depende de aprovação gerencial (LGPD) e vai por requisição no portal
-WORK_NOTE_ACESSO = ("Solicitação de acesso às câmeras. Orientado o solicitante a abrir requisição pelo portal, "
-                    "pois o acesso depende de aprovação gerencial (LGPD).")
+# skill, fluxo 8: acesso vai por requisição. No despacho só o fato; o contato com o solicitante entra no encerramento.
+WORK_NOTE_ACESSO = textos.acesso_despacho()
 ASSIGNED_TO = "a37f083f3b5c7a548c9f67dc73e45a50"
 BUSINESS_SERVICE = "26d75cb8dba5bf00f80f9972ca961978"
 TYPE_DEFAULT = "00020f981bbb56d0febdeac82d4bcbff"
@@ -208,7 +207,8 @@ def severity_line(impact: str | None, urgency: str | None) -> str | None:
 def camera_line(cam: dict) -> str:
     codes = cam["codigos"]
     alvo = f"da câmera {codes[0]}" if len(codes) == 1 else f"das câmeras {' / '.join(codes)}"
-    return f"Teste {alvo} às {cam['hora']}: imagem normalizada no Digifort, print anexado."
+    return (f"Realizada verificação {alvo} às {cam['hora']} no Digifort, operando normalmente no momento da checagem. "
+            "Evidência anexada ao incidente.")
 
 
 def build_first_touch(inc: dict, final: dict, current: dict | None,
@@ -296,7 +296,7 @@ def build_first_touch(inc: dict, final: dict, current: dict | None,
         if nota != padrao:
             warnings.append("Work note editada manualmente.")
     elif alerta and val:
-        nota = scom.WORK_NOTE.format(host=val["host"])
+        nota = scom.nota_de(val)
         warnings.append(f"Nota de validação SCOM (ping {val['hora']}, {val['perda']}% de perda); a imagem vai anexada.")
     elif cam and not alerta and not acesso:
         nota = f"{padrao} {camera_line(cam)}"

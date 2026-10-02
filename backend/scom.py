@@ -14,15 +14,15 @@ _HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,62}$")
 _IP_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 _FROM_TEXT = re.compile(r"on computer\s+([A-Za-z0-9-]+)", re.IGNORECASE)
 
-# Work note: validação por ping (10 pacotes, sem perdas = comunicação SCOM normalizada)
-WORK_NOTE = (
-    "Causa base: Alerta automático de falha de heartbeat do Microsoft Monitoring Agent (SCOM) no servidor {host}.\n"
-    "\n"
-    "Validação executada: Ping de 10 pacotes ao servidor respondendo sem perdas (0%).\n"
-    "Resultado: Servidor está online e acessível na rede. Comunicação com o monitoramento normalizada.\n"
-    "\n"
-    "Evidência anexada ao incidente. Incidente encerrado sem necessidade de intervenção operacional."
-)
+def nota_validacao(host: str, ip: str | None = None, media_ms: int | None = None) -> str:
+    """Work note do heartbeat validado por ping (manual de encerramento: heartbeat com evidência de ping)."""
+    from backend import textos
+    return textos.scom_heartbeat(f"{host}{DOMAIN}", ip, media_ms)
+
+
+def nota_de(val: dict) -> str:
+    """Nota a partir de ultima_validacao()."""
+    return nota_validacao(val["host"], val.get("ip"), val.get("media"))
 
 def is_scom_alert(short_description: str, description: str = "") -> bool:
     t = f"{short_description} {description}".lower()
@@ -92,9 +92,10 @@ def run_ping(host: str, domain: str = DOMAIN, count: int = 10, target: str | Non
     loss = re.search(r"\((\d+)%", out)
     ip = re.search(r"\[?(\d{1,3}(?:\.\d{1,3}){3})\]?", out)
     perda = int(loss.group(1)) if loss else None
+    media = re.search(r"(?:M\S{1,3}dia|Average)\s*=\s*(\d+)\s*ms", out)
     return {
         "host": host, "target": target, "ip": ip.group(1) if ip else None,
-        "perda_percentual": perda,
+        "perda_percentual": perda, "media_ms": int(media.group(1)) if media else None,
         "ok": proc.returncode == 0 and perda == 0,
         "resolveu": bool(ip),
         "saida": out.strip(),
@@ -155,7 +156,9 @@ def ultima_validacao(incident: str, agora: datetime | None = None) -> dict | Non
         arq = EVIDENCE_DIR / Path(campos["evid"]).name
         if not arq.exists():
             return None
+        media = campos.get("media")
         return {"host": campos.get("host"), "perda": campos.get("perda"), "arquivo": arq,
+                "ip": campos.get("ip") or None, "media": int(media) if (media or "").isdigit() else None,
                 "hora": quando.astimezone(BRT).strftime("%H:%M")}
     return None
 
@@ -188,7 +191,7 @@ def check(short_description: str, description: str = "", *, domain: str = DOMAIN
     res["ressalva"] = ("Ping OK prova que o servidor está na rede, não que o Health Service voltou a enviar heartbeat "
                        "(confirmação forte: console do SCOM ou saída na porta 5723).")
     if res["ok"]:
-        res["work_note"] = WORK_NOTE.format(host=host)
+        res["work_note"] = nota_validacao(host, res["ping"].get("ip"), res["ping"].get("media_ms"))
     else:
         res["aviso"] += " Nada de texto de encerramento."
     return res

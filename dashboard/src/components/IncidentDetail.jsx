@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  approveIncident, closeIncident, emailA4Abrir, emailA4Preview, getDestinos, getIncidentHost, getPayload, pingEvidenceUrl, pingIncident, pingRegistrar, refreshIncident, teamsDraft,
+  approveIncident, closeIncident, emailA4Abrir, emailA4Preview, getCloseDraft, getDestinos, getIncidentHost, getPayload, pingEvidenceUrl, pingIncident, pingRegistrar, refreshIncident, teamsDraft,
 } from '../api';
 import { HOLD_MS } from './HoldButton';
+import Redator, { pendentes } from './Redator';
 import RitmPanel from './RitmPanel';
 import CameraPanel from './CameraPanel';
 import { Badge, Button, ConfBar, dataSN, prazoSLA, statusLabel, statusTone, timeAgo, unitColor } from './ui';
 
 const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
+const CENARIO = { scom_ping: 'heartbeat validado por ping', scom: 'heartbeat sem intervenção', acesso: 'acesso via incidente',
+  pendencia: 'pendência com RITM', camera: 'câmera verificada no Digifort', simples: 'resolução simples' };
 
 function Cell({ label, children, mono, className = '' }) {
   return (
@@ -74,6 +77,8 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
   const [emailA4, setEmailA4] = useState(null);
   const [a4Prev, setA4Prev] = useState(null);
   const [closeNote, setCloseNote] = useState('');
+  const [closeCenario, setCloseCenario] = useState(null);
+  const [validacao, setValidacao] = useState('');
   const [closing, setClosing] = useState(null);
   const [impact, setImpact] = useState('');
   const [urgency, setUrgency] = useState('');
@@ -158,7 +163,7 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
         : {};
       const r = await approveIncident(incident.incident_number, overrides);
       const extra = [r.editado && 'editado', r.anexo && `evidência ${r.anexo}`,
-        r.fields?.work_notes?.startsWith('Causa base') && 'nota de validação SCOM'].filter(Boolean);
+        r.fields?.work_notes?.startsWith('Causa raiz: Falha de heartbeat') && 'nota de validação SCOM'].filter(Boolean);
       setFired({ sub: r.dry_run ? 'simulado · dry-run' : 'gravado no servicenow', at: Date.now() });
       setMsg({ ok: true, text: `${r.dry_run ? 'Simulado (dry-run)' : 'Aplicado no ServiceNow'} em ${Math.round(r.tempo_ms)} ms${extra.map((x) => ` · ${x}`).join('')}` });
       onChanged?.();
@@ -179,7 +184,16 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
     } catch (e) { setRegistro({ ok: false, text: e.message }); }
   };
   const holdReg = useHold(registrar, !scom?.ok || !!registro?.busy || !!registro?.ok);
-  const holdClose = useHold(() => runClose(), !closeNote.trim() || !!closing?.busy);
+  const holdClose = useHold(() => runClose(), !closeNote.trim() || !!closing?.busy || pendentes(closeNote).length > 0);
+
+  // encerramento: abre com o modelo do manual para o cenário (SCOM, câmera testada, acesso, RITM, simples)
+  useEffect(() => {
+    setCloseNote(''); setCloseCenario(null); setValidacao(''); setClosing(null);
+    if (!incident || etapa !== 'saida') return;
+    getCloseDraft(incident.incident_number)
+      .then((d) => { setCloseNote(d.texto); setCloseCenario(d.cenario); })
+      .catch(() => {});
+  }, [incident?.incident_number, etapa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // e-mail A4: prévia montada no backend (modelo do .oft) assim que o chamado A4 está na Saída
   useEffect(() => {
@@ -227,14 +241,15 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
     if (closing?.busy) return;
     setClosing({ busy: true });
     try {
-      const r = await closeIncident(incident.incident_number, closeNote.trim());
+      const r = await closeIncident(incident.incident_number, closeNote.trim(), validacao.trim());
       setClosing(r);
       if (!r.simulado) onChanged?.();
     } catch (e) { setClosing({ erro: e.message }); }
   };
 
   const titleWarn = payload?.warnings?.some((w) => /^Título/.test(w));
-  const showStamp = fired || incident.status === 'aprovado';
+  // carimbo só confirma o gesto de despachar (some sozinho); depois o rodapé "Já despachado" diz o estado
+  const showStamp = !!fired;
   const origem = meta?.chamou_claude === undefined ? '—' : meta.chamou_claude ? 'Regras + LLM' : 'Regras locais';
 
   return (
@@ -579,20 +594,24 @@ export default function IncidentDetail({ incident, meta, onChanged }) {
 
         {etapa === 'saida' && (
           <div className="border-b-2 border-rule px-5 py-3">
-            <div className={LABEL}>Encerramento</div>
+            <div className={LABEL}>Encerramento{closeCenario ? ` · modelo: ${CENARIO[closeCenario] ?? closeCenario}` : ''}</div>
             <p className="mt-1 text-xs text-mute">
               Resolve no ServiceNow (estado Resolvido, código Solved) com este texto como nota de encerramento e work note.
-              Só quando o caso estiver resolvido.
+              Só quando o caso estiver resolvido. Texto no padrão do manual; o que estiver entre colchetes precisa ser preenchido.
             </p>
+            <div className="mt-2">
+              <Redator incidentNumber={incident.incident_number} texto={closeNote} onTexto={setCloseNote}
+                validacao={validacao} onValidacao={setValidacao} />
+            </div>
             <textarea
               value={closeNote}
               onChange={(e) => setCloseNote(e.target.value)}
-              placeholder="Causa base: … / Descrição: …"
+              placeholder="Causa raiz: … / Resolução: … / Encerramento: Incidente encerrado."
               className="mt-2 w-full border border-line bg-panel px-2 py-1.5 font-mono text-xs"
-              rows={3}
+              rows={8}
             />
             <div className="mt-2 flex items-center gap-3">
-              <button {...holdClose.handlers} disabled={!closeNote.trim() || !!closing?.busy}
+              <button {...holdClose.handlers} disabled={!closeNote.trim() || !!closing?.busy || pendentes(closeNote).length > 0}
                 className="relative overflow-hidden bg-invert px-4 py-2 text-left font-display text-sm font-extrabold uppercase tracking-wide text-invert-ink hover:opacity-90 disabled:opacity-50">
                 {closing?.busy ? 'Encerrando…' : 'Encerrar (Resolvido)'}
                 <span className="block font-mono text-[11.25px] font-normal normal-case tracking-[0.1em] opacity-75">mantenha pressionado</span>

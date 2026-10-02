@@ -53,7 +53,11 @@ def test_cria_e_bloqueia_duplicidade(client):
     assert r.status_code == 200, r.text
     j = r.json()
     assert j["ritm"].startswith("RITM") and j["simulado"]
-    assert f"requisição {j['ritm']}." in j["work_note"] and "requisição." not in j["work_note"]
+    nota = j["work_note"]
+    assert f"Acompanhamento seguirá vinculado à requisição {j['ritm']}." in nota  # número só no Encaminhamento
+    assert nota.endswith("Encerramento: Incidente encerrado com pendência vinculada à requisição.")
+    assert "Análise: Reparo depende de disponibilização de PEMT para acesso ao ponto." in nota
+    assert "INC1" not in nota
 
     # mesmo incidente de novo
     assert client.post("/incidents/INC1/ritm", json=body).status_code == 409
@@ -80,7 +84,15 @@ def test_teams_e_controle_em_mock(client, tmp_path, monkeypatch):
 
     t = client.post("/incidents/INC1/teams-draft", json={"ritm": r["ritm"], "pendencia": "PEMT"}).json()
     assert t["aberto"] is False and r["ritm"] in t["mensagem"] and "Ericon" in t["mensagem"]
-    assert "das câmeras" in t["mensagem"] and t["url"].startswith("https://teams.cloud.microsoft/")
+    m = t["mensagem"]
+    assert "sobre o incidente INC1, câmeras RES024/RES025 sem conexão." in m
+    assert "O reparo depende da disponibilização de uma PEMT para acesso ao ponto." in m
+    assert f"foi aberta a requisição {r['ritm']}." in m and m.endswith("Qualquer dúvida, fico à disposição!")
+    assert "pendência vinculada" not in m and t["url"].startswith("https://teams.cloud.microsoft/")
+
+    # encerramento da Saída já sai com a RITM e a pendência usadas na criação
+    cd = client.get("/incidents/INC1/close-draft").json()
+    assert cd["cenario"] == "pendencia" and f"requisição {r['ritm']}." in cd["texto"] and "PEMT" in cd["texto"]
 
     c = client.post("/incidents/INC1/controle", json={"ritm": r["ritm"], "req": r["req"], "pendencia": "PEMT",
                                                        "subarea": d["subarea"]})
