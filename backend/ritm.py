@@ -7,7 +7,6 @@ import json
 import re
 from functools import lru_cache
 
-from backend import textos
 from backend.config import ROOT, config
 from backend.payload import build_title, mapa_localidade, field_codes, _codes
 
@@ -45,20 +44,16 @@ def local_id(nome: str) -> str | None:
     return next((x["sys_id"] for x in locais() if x["nome"] == (nome or "").strip()), None)
 
 
-def render_description(incident_number: str, causa: str, pendencia: str, encaminhamento: str | None,
-                       ritm: str | None = None, sla_proximo: bool = False) -> str:
-    """Texto da RITM e da work note (manual: pendências externas). Sem número, o Encaminhamento fica com [RITM]."""
-    return textos.ritm_descricao(causa, pendencia, encaminhamento, ritm, sla_proximo)
-
-
-def sla_proximo(due_date: str | None, horas: int = 24) -> bool:
-    """SLA (valor bruto do ServiceNow, UTC) vencendo nas próximas `horas`."""
-    from datetime import datetime, timezone
-    try:
-        d = datetime.strptime((due_date or "")[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-    except ValueError:
-        return False
-    return (d - datetime.now(timezone.utc)).total_seconds() < horas * 3600
+def render_description(incident_number: str, causa: str, pendencia: str, encaminhamento: str,
+                       ritm: str | None = None) -> str:
+    vinculo = f"requisição {ritm}." if ritm else "requisição."
+    dep = _ANALISE.get(pendencia, pendencia or "atuação de outra equipe")
+    return (
+        f"Causa raiz: {causa}.\n\n"
+        f"Análise: Reestabelecimento depende de {dep} pela equipe responsável.\n\n"
+        f"Encaminhamento: {encaminhamento} Acompanhamento seguirá vinculado à {vinculo}\n\n"
+        f"Encerramento: Incidente {incident_number} encerrado com pendência vinculada à {vinculo}"
+    )
 
 
 def build_draft(inc: dict) -> dict:
@@ -80,8 +75,7 @@ def build_draft(inc: dict) -> dict:
         warnings.append("Sem código de câmera: informe a subárea (setor da planta).")
     if not pend:
         warnings.append(f"Escolha a pendência ({', '.join(PENDENCIAS)}).")
-    sla = sla_proximo(inc.get("due_date"))
-    encam = textos.pendencia(pend)[1]
+    encam = "Aguardando atuação."
     return {
         "incident_number": inc["incident_number"],
         "localidade_form": local,
@@ -90,9 +84,7 @@ def build_draft(inc: dict) -> dict:
         "pendencia": pend,
         "causa": causa,
         "encaminhamento": encam,
-        "sla_proximo": sla,
-        "modelos": {k: {"recurso": v[0], "aguardando": v[1]} for k, v in textos.PENDENCIAS.items()},
-        "descricao": render_description(inc["incident_number"], causa, pend, encam, sla_proximo=sla),
+        "descricao": render_description(inc["incident_number"], causa, pend, encam),
         "cameras": cods,
         "warnings": warnings,
     }

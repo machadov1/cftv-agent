@@ -129,16 +129,16 @@
     "corpo": [
       "{SAUDACAO}!",
       "",
-      "Encaminho abaixo o incidente aberto na plataforma ServiceNow para tratamento: {INCIDENT}",
+      "Encaminho abaixo o incidente aberto na plataforma ServiceNow para tratamento:",
       "",
-      "Descrição do problema (descrito pelo solicitante):",
-      "\"{DESCRICAO}\"",
+      "Descrição do problema (Descrito pelo solicitante):",
+      "{DESCRICAO}",
       "",
       "Dados do solicitante:",
-      "- Usuário: {SOLICITANTE}",
-      "- E-mail: {EMAIL}",
-      "- Telefone/WhatsApp: ",
-      "- Unidade/Segmento: {UNIDADE}",
+      "  * Usuário: {SOLICITANTE}",
+      "  * E-mail: {EMAIL}",
+      "  * Telefone/WhatsApp: ",
+      "  * Unidade/Segmento: {UNIDADE}",
       "",
       "SLA: {SLA}",
       "",
@@ -150,6 +150,6 @@
       "Departamento Técnico",
       "C +55 11 95903-6030"
     ],
-    "origem": "Texto do modelo A4 CHAMADOS.oft (02/10/2026), ajustado ao 'Redirecionamento de incidente' do manual de textos. Abre pelo app de e-mail padrão (mailto), nunca envia."
+    "origem": "Texto do modelo A4 CHAMADOS.oft (02/10/2026). Abre pelo app de e-mail padrão (mailto), nunca envia."
   }
 }

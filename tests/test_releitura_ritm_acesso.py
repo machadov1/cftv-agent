@@ -157,8 +157,4 @@ def test_pedido_de_acesso():
     assert fields["short_description"] == "Resende - Solicitação de acesso às câmeras"
     assert fields["work_notes"] == WORK_NOTE_ACESSO
     msg = teams.build_message_acesso("INC1", "Ericon")
-    assert "[LINK]" in msg and "LGPD" in msg and "INC1" in msg
-    assert msg.split("\n")[0] in ("Bom dia, Ericon! Tudo bem?", "Boa tarde, Ericon! Tudo bem?", "Boa noite, Ericon! Tudo bem?")
-    assert msg.endswith("Qualquer dúvida, fico à disposição!")
-    # despacho só afirma o fato; o contato com o solicitante entra no encerramento
-    assert WORK_NOTE_ACESSO.startswith("Causa raiz: Solicitação de acesso") and "Realizado contato" not in WORK_NOTE_ACESSO
+    assert "[LINK]" in msg and "LGPD" in msg and msg.startswith("INC1: ")

@@ -5,15 +5,15 @@ import { Button, inputClass } from './ui';
 
 const LABEL = 'text-[12.5px] font-semibold uppercase tracking-[0.12em] text-mute';
 
-// Mesmo modelo de backend/textos.ritm_descricao (manual: pendências externas); os textos por pendência vêm do rascunho.
-const SLA = 'Considerando a proximidade do encerramento do SLA do incidente, o acompanhamento seguirá vinculado à requisição.';
-const ponto = (t) => { const s = (t || '').trim(); return /[.!?)]$/.test(s) ? s : `${s}.`; };
-const modelo = (d, pend) => d.modelos?.[pend] ?? { recurso: 'atuação de outra equipe para tratativa da falha',
-  aguardando: 'Aguardando atuação da equipe responsável.' };
-const render = (d, pend, encam) =>
-  `Causa raiz: ${ponto(d.causa)}\n\nAnálise: Reparo depende de ${modelo(d, pend).recurso}.${d.sla_proximo ? ` ${SLA}` : ''}\n\n` +
-  `Encaminhamento: ${ponto(encam || modelo(d, pend).aguardando)} Acompanhamento seguirá vinculado à requisição.\n\n` +
-  'Encerramento: Incidente encerrado com pendência vinculada à requisição.';
+// Reaplica o modelo quando pendência/encaminhamento mudam, sem perder edição manual da descrição inteira
+const ANALISE = {
+  PEMT: 'PEMT', Infraestrutura: 'intervenção de infraestrutura', Elétrica: 'intervenção elétrica',
+  Recurso: 'disponibilização de recurso', Andaime: 'montagem de andaime',
+  Redes: 'intervenção da equipe de redes', PTA: 'PTA', Agendamento: 'agendamento de acesso',
+};
+const render = (inc, causa, pend, encam) =>
+  `Causa raiz: ${causa}.\n\nAnálise: Reestabelecimento depende de ${ANALISE[pend] ?? 'atuação de outra equipe'} pela equipe responsável.\n\n` +
+  `Encaminhamento: ${encam} Acompanhamento seguirá vinculado à requisição.\n\nEncerramento: Incidente ${inc} encerrado com pendência vinculada à requisição.`;
 
 function NextSteps({ incident, done }) {
   const [teams, setTeams] = useState(null);
@@ -100,15 +100,11 @@ export default function RitmPanel({ incident, autoOpen = false }) {
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
   const setPend = (e) => {
     const pendencia = e.target.value;
-    setF((x) => {
-      // encaminhamento ainda no padrão da pendência anterior acompanha a troca; editado à mão fica
-      const encaminhamento = x.encaminhamento === modelo(d, x.pendencia).aguardando ? modelo(d, pendencia).aguardando : x.encaminhamento;
-      return { ...x, pendencia, encaminhamento, descricao: render(d, pendencia, encaminhamento) };
-    });
+    setF((x) => ({ ...x, pendencia, descricao: render(incident.incident_number, d.causa, pendencia, x.encaminhamento) }));
   };
   const setEncam = (e) => {
     const encaminhamento = e.target.value;
-    setF((x) => ({ ...x, encaminhamento, descricao: render(d, x.pendencia, encaminhamento) }));
+    setF((x) => ({ ...x, encaminhamento, descricao: render(incident.incident_number, d.causa, x.pendencia, encaminhamento) }));
   };
 
   const submit = async () => {
@@ -165,7 +161,7 @@ export default function RitmPanel({ incident, autoOpen = false }) {
       </div>
 
       <p className="text-[13.75px] text-mute">
-        Confira câmeras e o que foi reestabelecido antes de criar: depois de enviada, a descrição da RITM não pode ser editada.
+        Confira câmeras e o que foi restabelecido antes de criar: depois de enviada, a descrição da RITM não pode ser editada.
       </p>
       {msg && !msg.ok && msg.dup && (
         <label className="flex items-center gap-2 text-xs text-warn">

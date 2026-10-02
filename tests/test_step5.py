@@ -14,13 +14,8 @@ def test_saudacao_e_nome():
 
 
 def test_mensagem_e_url_nao_enviam():
-    m = teams.build_message("INC1", "Ericon", "O reparo depende da montagem de andaime.", "RITM1",
-                            "Câmera PIR400 sem conexão", dt.datetime(2026, 9, 29, 9))
-    assert m == ("Bom dia, Ericon! Tudo bem?\n\n"
-                 "Passando pra te atualizar sobre o incidente INC1, câmera PIR400 sem conexão.\n\n"
-                 "O reparo depende da montagem de andaime.\n\n"
-                 "Para acompanhamento das ações, foi aberta a requisição RITM1.\n\n"
-                 "Qualquer dúvida, fico à disposição!")
+    m = teams.build_message("INC1", "Ericon", "Câmera X sem conexão.", "RITM1", 1, dt.datetime(2026, 9, 29, 9))
+    assert m.startswith("INC1: Bom dia, Ericon. Tudo bem?") and "RITM1" in m and "da câmera" in m
     u = teams.build_url("a@b.com", m)
     assert u.startswith("https://teams.cloud.microsoft/l/chat/0/0?users=a%40b.com&message=")
     assert "\n" not in u

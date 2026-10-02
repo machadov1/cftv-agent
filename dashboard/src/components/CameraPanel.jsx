@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cameraAttach, cameraCheck, cameraClose, cameraClosingDraft, cameraClosingNote, getDestinos, snapshotUrl } from '../api';
 import HoldButton from './HoldButton';
-import Redator, { pendentes } from './Redator';
 import { Button } from './ui';
 
 const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
@@ -23,11 +22,9 @@ export default function CameraPanel({ number, hint, bare = false }) {
   const [notaRes, setNotaRes] = useState(null);
   const [fim, setFim] = useState(null); // resultado do encerramento
   const [debug, setDebug] = useState([]);
-  const [validacao, setValidacao] = useState('');
 
   useEffect(() => {
     setRes(null); setAtt(null); setErr(null); setNota(null); setNotaRes(null); setFim(null); setPrecisaLoc(false); setLoc('');
-    setValidacao('');
   }, [number]);
 
   const check = async (escolha = null) => {
@@ -57,13 +54,13 @@ export default function CameraPanel({ number, hint, bare = false }) {
 
   const registrar = async () => {
     setBusy(true); setErr(null);
-    try { setNotaRes(await cameraClosingNote(number, nota.texto, validacao)); } catch (e) { setErr(e.message); }
+    try { setNotaRes(await cameraClosingNote(number, nota.texto)); } catch (e) { setErr(e.message); }
     setBusy(false);
   };
 
   const encerrar = async () => {
     setBusy(true); setErr(null);
-    try { setFim(await cameraClose(number, nota.texto, validacao)); } catch (e) { setErr(e.message); }
+    try { setFim(await cameraClose(number, nota.texto)); } catch (e) { setErr(e.message); }
     setBusy(false);
   };
 
@@ -172,32 +169,24 @@ export default function CameraPanel({ number, hint, bare = false }) {
         <div className="mt-3 border-t border-line pt-2">
           <div className={LABEL}>Texto de encerramento (editável)</div>
           {nota.faltando?.length > 0 && (
-            <p className="mt-1 text-[13.75px] text-warn">
-              Sem print: {nota.faltando.join(', ')}. O texto lista cada câmera e pede a RITM da pendência.
-            </p>
-          )}
-          {!notaRes && fim?.status !== 'encerrado' && (
-            <div className="mt-2">
-              <Redator incidentNumber={number} texto={nota.texto} onTexto={(t) => setNota({ ...nota, texto: t })}
-                validacao={validacao} onValidacao={setValidacao} />
-            </div>
+            <p className="mt-1 text-[13.75px] text-warn">Sem print ainda: {nota.faltando.join(', ')}. O texto cobre só as que voltaram.</p>
           )}
           <textarea
             value={nota.texto}
             onChange={(e) => setNota({ ...nota, texto: e.target.value })}
-            rows={7}
+            rows={4}
             disabled={!!notaRes || fim?.status === 'encerrado'}
-            className="mt-2 w-full border-2 border-rule bg-panel px-2 py-1.5 font-mono text-[13.75px] leading-snug"
+            className="mt-1 w-full border-2 border-rule bg-panel px-2 py-1.5 font-mono text-[13.75px] leading-snug"
           />
           {!fim ? (
             <div className="mt-1 flex flex-wrap items-start gap-3">
               {!notaRes && (
-                <HoldButton onDone={registrar} disabled={busy || nota.texto.trim().length < 20 || pendentes(nota.texto).length > 0}
+                <HoldButton onDone={registrar} disabled={busy || nota.texto.trim().length < 20}
                   hint="só a nota · segue aberto">
                   Registrar work note
                 </HoldButton>
               )}
-              <HoldButton onDone={encerrar} disabled={busy || nota.texto.trim().length < 20 || pendentes(nota.texto).length > 0}
+              <HoldButton onDone={encerrar} disabled={busy || nota.texto.trim().length < 20}
                 hint="resolvido · mantenha pressionado" className="border-l-8 border-bad">
                 Encerrar incidente
               </HoldButton>

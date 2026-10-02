@@ -69,14 +69,10 @@ export const getTopologia = () => request('/servidores/topologia');
 export const getTopologiaMapa = (forcar = false) => request(`/servidores/topologia/mapa${forcar ? '?forcar=true' : ''}`);
 export const getTopologiaServidor = (ip, forcar = false) => request(`/servidores/topologia/${ip}${forcar ? '?forcar=true' : ''}`);
 export const cameraClosingDraft = (n) => request(`/incidents/${n}/camera/closing-draft`);
-export const cameraClosingNote = (n, texto, validacao = '') =>
-  request(`/incidents/${n}/camera/closing-note`, { method: 'POST', body: body({ texto, validacao: validacao || null }) });
-export const cameraClose = (n, texto, validacao = '') =>
-  request(`/incidents/${n}/camera/close`, { method: 'POST', body: body({ texto, validacao: validacao || null }) });
-export const getCloseDraft = (n) => request(`/incidents/${n}/close-draft`);
-export const getTextosComandos = () => request('/textos/comandos');
-export const redigirTexto = (incident_number, rascunho, comando = null, texto_atual = null) =>
-  request('/textos/redigir', { method: 'POST', body: body({ incident_number, rascunho, comando, texto_atual }) });
+export const cameraClosingNote = (n, texto) =>
+  request(`/incidents/${n}/camera/closing-note`, { method: 'POST', body: body({ texto }) });
+export const cameraClose = (n, texto) =>
+  request(`/incidents/${n}/camera/close`, { method: 'POST', body: body({ texto }) });
 export const getDestinos = () => request('/rules/destinos');
 export const getSugestoes = () => request('/rules/sugestoes');
 export const aceitarSugestao = (prefixo, localidade) =>
@@ -95,7 +91,6 @@ export const getDigifortStatus = () => request('/digifort/status');
 export const getTasks = (force = false) => request(`/tasks${force ? '?force=true' : ''}`);
 export const getTasksVolumetria = (meses = 5) => request(`/tasks/volumetria?meses=${meses}`);
 export const getIncidentesVolumetria = (meses = 5) => request(`/metrics/volumetria?meses=${meses}`);
-export const closeIncident = (n, work_notes, validacao = '') =>
-  request(`/incidents/${n}/close`, { method: 'POST', body: body({ work_notes, validacao: validacao || null }) });
+export const closeIncident = (n, work_notes) => request(`/incidents/${n}/close`, { method: 'POST', body: body({ work_notes }) });
 export const emailA4Preview = (n) => request(`/incidents/${n}/email-a4/preview`);
 export const emailA4Abrir = (n) => request(`/incidents/${n}/email-a4`, { method: 'POST' });

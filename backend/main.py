@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from backend.config import config
 from backend.db import init_db
-from backend.routes import incidents, rules, history, metrics, backlog as backlog_routes, llm as llm_routes, agent as agent_routes, sync as sync_routes, session as session_routes, servidores as servidores_routes, camera as camera_routes, tasks as tasks_routes, textos as textos_routes
+from backend.routes import incidents, rules, history, metrics, backlog as backlog_routes, llm as llm_routes, agent as agent_routes, sync as sync_routes, session as session_routes, servidores as servidores_routes, camera as camera_routes, tasks as tasks_routes
 from backend.sn_session import session
 from backend import sync
 
@@ -39,7 +39,6 @@ app.include_router(agent_routes.router)
 app.include_router(servidores_routes.router)
 app.include_router(camera_routes.router)
 app.include_router(tasks_routes.router)
-app.include_router(textos_routes.router)
 
 @app.get("/health")
 def health():

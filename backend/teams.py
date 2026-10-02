@@ -11,7 +11,7 @@ try:
 except Exception:  # Windows sem tzdata: Brasil sem horário de verão desde 2019
     _TZ = timezone(timedelta(hours=-3))
 
-from backend import textos
+from backend.ritm import _ANALISE
 
 
 def saudacao(agora: datetime | None = None) -> str:
@@ -25,37 +25,30 @@ def primeiro_nome(caller: str) -> str:
     return (parte.strip().split() or [""])[0].title()
 
 
-def _minuscula(t: str) -> str:
-    """'Câmeras 399 sem conexão' -> 'câmeras 399 sem conexão' (códigos em maiúsculas ficam como estão)."""
-    return t[:1].lower() + t[1:] if t[:2] and not t[:2].isupper() else t
-
-
 def default_identificado(causa: str, pendencia: str) -> str:
-    """O que depende de quem, em linguagem de gente (manual: sem 'pendência vinculada')."""
-    return f"O reparo depende {textos.pendencia(pendencia)[2]}."
+    dep = _ANALISE.get(pendencia, "atuação de outra equipe")
+    return f"{causa}. O restabelecimento depende de {dep} pela equipe responsável."
 
 
-def build_message(inc: str, nome: str, identificado: str, ritm: str, causa: str = "", agora: datetime | None = None) -> str:
-    """Mensagem ao solicitante (manual: Teams/WhatsApp). Só o primeiro nome, saudação pelo período."""
-    sobre = f"o incidente {inc}" + (f", {_minuscula(causa.strip().rstrip('.'))}" if causa.strip() else "")
+def build_message(inc: str, nome: str, identificado: str, ritm: str, cameras: int, agora: datetime | None = None) -> str:
+    alvo = "das câmeras" if cameras > 1 else "da câmera" if cameras == 1 else "do caso"
     return (
-        f"{saudacao(agora)}, {nome}! Tudo bem?\n\n"
-        f"Passando pra te atualizar sobre {sobre}.\n\n"
-        f"{identificado.strip()}\n\n"
-        f"Para acompanhamento das ações, foi aberta a requisição {ritm}.\n\n"
-        "Qualquer dúvida, fico à disposição!"
+        f"{inc}: {saudacao(agora)}, {nome}. Tudo bem?\n\n"
+        f"{identificado}\n\n"
+        f"Para dar continuidade ao caso, foi aberta a requisição de acompanhamento {ritm}, vinculada a este incidente. "
+        f"O acompanhamento seguirá por ela até a normalização {alvo}.\n\n"
+        f"Fico à disposição."
     )
 
 
 def build_message_acesso(inc: str, nome: str, agora: datetime | None = None) -> str:
     """Pedido de acesso às câmeras (skill, fluxo 8). [LINK] fica para o Victor colar o link da requisição."""
     return (
-        f"{saudacao(agora)}, {nome}! Tudo bem?\n\n"
-        f"Passando pra te atualizar sobre o incidente {inc}, de acesso às câmeras.\n\n"
-        "A liberação de acesso segue por requisição no portal, porque depende de aprovação gerencial (LGPD). "
-        "Segue o link para abertura:\n\n"
+        f"{inc}: {saudacao(agora)}, {nome}. Tudo bem?\n\n"
+        "Sobre o seu pedido de acesso às câmeras: por envolver aprovação gerencial (LGPD), o acesso é liberado via "
+        "requisição no portal. Segue o link para abrir a solicitação:\n\n"
         "[LINK]\n\n"
-        "Qualquer dúvida, fico à disposição!"
+        "Fico à disposição."
     )
 
 
