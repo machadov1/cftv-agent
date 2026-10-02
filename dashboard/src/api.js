@@ -66,10 +66,13 @@ export const pingRegistrar = (n) => request(`/incidents/${n}/ping/registrar`, { 
 export const cameraCheck = (n, localidade = '', escolha = null) =>
   request(`/incidents/${n}/camera/check`, { method: 'POST', body: body({ localidade: localidade || null, escolha }) });
 export const getTopologia = () => request('/servidores/topologia');
+export const getTopologiaMapa = (forcar = false) => request(`/servidores/topologia/mapa${forcar ? '?forcar=true' : ''}`);
 export const getTopologiaServidor = (ip, forcar = false) => request(`/servidores/topologia/${ip}${forcar ? '?forcar=true' : ''}`);
 export const cameraClosingDraft = (n) => request(`/incidents/${n}/camera/closing-draft`);
 export const cameraClosingNote = (n, texto) =>
   request(`/incidents/${n}/camera/closing-note`, { method: 'POST', body: body({ texto }) });
+export const cameraClose = (n, texto) =>
+  request(`/incidents/${n}/camera/close`, { method: 'POST', body: body({ texto }) });
 export const getDestinos = () => request('/rules/destinos');
 export const getSugestoes = () => request('/rules/sugestoes');
 export const aceitarSugestao = (prefixo, localidade) =>

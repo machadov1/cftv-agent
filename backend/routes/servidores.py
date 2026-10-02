@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend import digifort, servidores
+from backend import digifort, servidores, topologia as topo
 
 router = APIRouter(prefix="/servidores", tags=["servidores"])
 
@@ -14,6 +14,12 @@ def status():
 def topologia():
     """Unidade -> servidores CFTV, direto da lista de servidores (sem rede)."""
     return {"unidades": servidores.topologia(), "digifort_configurado": digifort.configured()}
+
+
+@router.get("/topologia/mapa")
+def topologia_mapa(forcar: bool = False):
+    """Disponibilidade de todas as unidades e servidores (Digifort lido em paralelo, cache de 10 min). Só leitura."""
+    return topo.ler_todos(forcar=forcar)
 
 
 @router.get("/topologia/{ip}")

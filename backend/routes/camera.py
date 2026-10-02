@@ -269,3 +269,52 @@ def closing_note(incident_number: str, body: NotaIn):
         raise HTTPException(status_code=502, detail="Falha ao gravar a work note no ServiceNow")
     db.add_history(info["incident_number"], "nota_encerramento", f"dry_run={dry} {texto[:200]}", False, 0)
     return {"status": "registrada", "dry_run": dry}
+
+
+@router.post("/incidents/{incident_number}/camera/close")
+def camera_close(incident_number: str, body: NotaIn):
+    """Encerra (Resolvido, fluxo 9.3) o incidente de câmera que voltou: state 6, close_code Solved, close_notes e work
+    note com o texto. Exige o print já anexado e confere no ServiceNow se já está encerrado. Respeita o dry-run.
+    Pedido explícito do Victor = gesto de segurar no painel."""
+    from backend import fluxo
+    from backend.payload import ASSIGNED_TO
+    from backend.routes.incidents import CLOSE_CODE
+    info = _resolve(incident_number)
+    texto = body.texto.strip()
+    if len(texto) < 20:
+        raise HTTPException(status_code=422, detail="Texto de encerramento muito curto")
+    if not info["sys_id"]:
+        raise HTTPException(status_code=409, detail="sys_id ausente")
+    files = _arquivos(info)
+    if not files:
+        raise HTTPException(status_code=422, detail="Teste a câmera e gere o print antes de encerrar")
+    dry = config.SERVICENOW_DRY_RUN or config.SERVICENOW_MOCK
+    try:
+        anexos = sn_api.list_attachment_names(info["sys_id"])
+        if anexos is None:
+            raise HTTPException(status_code=502, detail="Não consegui conferir os anexos; nada foi enviado")
+        if not dry and not any(p.name in anexos for _, p in files):
+            raise HTTPException(status_code=409, detail="Anexe o print ao incidente antes de encerrar")
+        atual = sn_api.get_current(info["sys_id"])
+    except SNAuthError:
+        raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
+    if atual is None:
+        raise HTTPException(status_code=502, detail="Não consegui ler o incidente; nada foi enviado")
+    estado = str(atual.get("state") or "")
+    if estado in fluxo.ESTADOS_ENCERRADOS:
+        return {"status": "já encerrado", "dry_run": dry, "estado": estado}
+    payload = {"state": "6", "close_code": CLOSE_CODE, "close_notes": texto,
+               "u_is_recurring_incident": "no", "assigned_to": ASSIGNED_TO}
+    if texto.splitlines()[-1].strip().lower() not in (atual.get("work_notes") or "").lower():
+        payload["work_notes"] = texto  # a nota já registrada não se repete
+    try:
+        if not sn_api.patch_incident(info["sys_id"], payload):
+            raise HTTPException(status_code=502, detail="ServiceNow recusou o encerramento; nada mudou")
+    except SNAuthError:
+        raise HTTPException(status_code=409, detail="ServiceNow desconectado: clique em Conectar")
+    if info["local"] and not dry:
+        inc = db.get_incident(info["incident_number"]) or {}
+        db.set_fluxo(info["incident_number"], fluxo.ENCERRADO, "6", inc.get("sn_grupo") or info.get("grupo") or "",
+                     inc.get("nota_autor"))
+    db.add_history(info["incident_number"], "encerrado", f"camera dry_run={dry} state=6 close_code={CLOSE_CODE} nota={texto[:100]}")
+    return {"status": "encerrado", "dry_run": dry, "fields": payload}

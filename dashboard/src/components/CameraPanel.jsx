@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { cameraAttach, cameraCheck, cameraClosingDraft, cameraClosingNote, getDestinos, snapshotUrl } from '../api';
+import { cameraAttach, cameraCheck, cameraClose, cameraClosingDraft, cameraClosingNote, getDestinos, snapshotUrl } from '../api';
 import HoldButton from './HoldButton';
 import { Button } from './ui';
 
@@ -20,10 +20,11 @@ export default function CameraPanel({ number, hint, bare = false }) {
   const [precisaLoc, setPrecisaLoc] = useState(false);
   const [nota, setNota] = useState(null); // { texto, faltando }
   const [notaRes, setNotaRes] = useState(null);
+  const [fim, setFim] = useState(null); // resultado do encerramento
   const [debug, setDebug] = useState([]);
 
   useEffect(() => {
-    setRes(null); setAtt(null); setErr(null); setNota(null); setNotaRes(null); setPrecisaLoc(false); setLoc('');
+    setRes(null); setAtt(null); setErr(null); setNota(null); setNotaRes(null); setFim(null); setPrecisaLoc(false); setLoc('');
   }, [number]);
 
   const check = async (escolha = null) => {
@@ -54,6 +55,12 @@ export default function CameraPanel({ number, hint, bare = false }) {
   const registrar = async () => {
     setBusy(true); setErr(null);
     try { setNotaRes(await cameraClosingNote(number, nota.texto)); } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const encerrar = async () => {
+    setBusy(true); setErr(null);
+    try { setFim(await cameraClose(number, nota.texto)); } catch (e) { setErr(e.message); }
     setBusy(false);
   };
 
@@ -160,7 +167,7 @@ export default function CameraPanel({ number, hint, bare = false }) {
 
       {nota && (
         <div className="mt-3 border-t border-line pt-2">
-          <div className={LABEL}>Work note de encerramento (editável) · não encerra o incidente</div>
+          <div className={LABEL}>Texto de encerramento (editável)</div>
           {nota.faltando?.length > 0 && (
             <p className="mt-1 text-[13.75px] text-warn">Sem print ainda: {nota.faltando.join(', ')}. O texto cobre só as que voltaram.</p>
           )}
@@ -168,16 +175,31 @@ export default function CameraPanel({ number, hint, bare = false }) {
             value={nota.texto}
             onChange={(e) => setNota({ ...nota, texto: e.target.value })}
             rows={4}
-            disabled={!!notaRes}
+            disabled={!!notaRes || fim?.status === 'encerrado'}
             className="mt-1 w-full border-2 border-rule bg-panel px-2 py-1.5 font-mono text-[13.75px] leading-snug"
           />
-          {!notaRes ? (
-            <HoldButton onDone={registrar} disabled={busy || nota.texto.trim().length < 20} className="mt-1">
-              Registrar work note
-            </HoldButton>
+          {!fim ? (
+            <div className="mt-1 flex flex-wrap items-start gap-3">
+              {!notaRes && (
+                <HoldButton onDone={registrar} disabled={busy || nota.texto.trim().length < 20}
+                  hint="só a nota · segue aberto">
+                  Registrar work note
+                </HoldButton>
+              )}
+              <HoldButton onDone={encerrar} disabled={busy || nota.texto.trim().length < 20}
+                hint="resolvido · mantenha pressionado" className="border-l-8 border-bad">
+                Encerrar incidente
+              </HoldButton>
+            </div>
           ) : (
-            <div className="font-mono text-[13.75px] font-bold text-ok">
-              Work note {notaRes.status}{notaRes.dry_run && notaRes.status === 'registrada' ? ' (simulada: dry-run)' : ''}. O incidente segue aberto para você encerrar.
+            <div className={`mt-1 font-mono text-[13.75px] font-bold ${fim.status === 'encerrado' && !fim.dry_run ? 'text-ok' : 'text-warn'}`}>
+              {fim.status === 'já encerrado' ? 'Já estava encerrado no ServiceNow: nada foi enviado.'
+                : fim.dry_run ? 'Encerramento simulado (dry-run): nada foi enviado.' : 'Incidente encerrado no ServiceNow (Resolvido · Solved).'}
+            </div>
+          )}
+          {notaRes && !fim && (
+            <div className="mt-1 font-mono text-[13.75px] font-bold text-ok">
+              Work note {notaRes.status}{notaRes.dry_run && notaRes.status === 'registrada' ? ' (simulada: dry-run)' : ''}. Encerre quando quiser.
             </div>
           )}
         </div>

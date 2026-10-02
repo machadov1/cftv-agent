@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getBacklog } from '../api';
 import CameraPanel from '../components/CameraPanel';
-import Topologia from '../components/Topologia';
+import TopologiaMapa from '../components/TopologiaMapa';
 import RitmPanel from '../components/RitmPanel';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Button, inputClass } from '../components/ui';
@@ -12,11 +12,12 @@ const DE_CAMERA = /c[âa]mera/i;
 export default function CameraPage({ target }) {
   const [number, setNumber] = useState('');
   const [active, setActive] = useState(target || '');
-  useEffect(() => { if (target) setActive(target); }, [target]);
+  // incidente vindo de outra tela abre direto no teste; sem alvo, a aba abre no mapa
+  const [modo, setModo] = useState(target ? 'teste' : 'topologia');
+  useEffect(() => { if (target) { setActive(target); setModo('teste'); } }, [target]);
   const [rows, setRows] = useState(null);
   const [erro, setErro] = useState(null);
   const [q, setQ] = useState('');
-  const [vista, setVista] = useState('incidentes'); // incidentes | topologia
 
   const load = (force = false) => {
     setErro(null);
@@ -33,21 +34,35 @@ export default function CameraPage({ target }) {
 
   const go = (n) => { const v = (n ?? number).trim().toUpperCase(); if (v) { setActive(v); setNumber(''); } };
 
+  const emAndamento = (rows ?? []).filter((r) => EM_ANDAMENTO.test(r.status || ''));
+  const abas = (
+    <nav className="flex shrink-0 items-stretch border-b-2 border-rule bg-panel2" aria-label="Câmeras e servidores">
+      {[['topologia', 'Topologia'], ['teste', 'Teste de câmera']].map(([id, nome]) => (
+        <button key={id} onClick={() => setModo(id)} aria-current={modo === id ? 'page' : undefined}
+          className={`border-r-2 border-rule px-4 py-2 font-display text-sm font-bold uppercase tracking-wide ${
+            modo === id ? 'bg-invert text-invert-ink' : 'text-ink hover:bg-panel'}`}>
+          {nome}{id === 'teste' && active ? ` · ${active}` : ''}
+        </button>
+      ))}
+    </nav>
+  );
+
+  if (modo === 'topologia') {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {abas}
+        <div className="min-h-0 flex-1">
+          <TopologiaMapa incidentes={emAndamento} onTestar={(n) => { setActive(n); setModo('teste'); }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(380px,1fr)_minmax(520px,1.15fr)]">
+    <div className="flex h-full min-h-0 flex-col">
+    {abas}
+    <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(380px,1fr)_minmax(520px,1.15fr)]">
       <div className="flex min-h-0 flex-col border-rule xl:border-r-2">
-        <nav className="flex shrink-0 items-stretch border-b-2 border-rule bg-panel2" aria-label="Vista">
-          {[['incidentes', 'Incidentes'], ['topologia', 'Topologia']].map(([id, nome]) => (
-            <button key={id} onClick={() => setVista(id)} aria-current={vista === id ? 'page' : undefined}
-              className={`flex-1 border-r-2 border-rule px-4 py-2 font-display text-sm font-bold uppercase tracking-wide last:border-r-0 ${
-                vista === id ? 'bg-invert text-invert-ink' : 'text-ink hover:bg-panel'}`}>
-              {nome}
-            </button>
-          ))}
-        </nav>
-        {vista === 'topologia' ? (
-          <Topologia incidentes={(rows ?? []).filter((r) => EM_ANDAMENTO.test(r.status || ''))} onAbrir={(n) => setActive(n)} />
-        ) : (<>
         <div className="shrink-0 space-y-2.5 border-b-2 border-rule p-3">
           <div className="flex gap-2">
             <input
@@ -89,7 +104,6 @@ export default function CameraPage({ target }) {
             </button>
           ))}
         </div>
-        </>)}
       </div>
 
       <div className="min-h-0 overflow-auto border-t-2 border-rule p-5 xl:border-t-0">
@@ -112,12 +126,13 @@ export default function CameraPage({ target }) {
               <p className="mt-2 max-w-md text-mute">
                 Escolha um incidente em andamento (ou digite o número). O agente acha a câmera no Digifort, mesmo sem o nome
                 exato (sugere as parecidas), confere se voltou, tira o print, anexa e prepara a work note de encerramento.
-                Em Topologia você vê unidade → servidores → câmeras e quais servidores aceitam a credencial.
+                Em Topologia você vê a disponibilidade de cada unidade e servidor.
               </p>
             </div>
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

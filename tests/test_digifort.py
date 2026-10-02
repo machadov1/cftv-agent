@@ -308,3 +308,42 @@ def test_lembrada_no_reserva_desativada_e_reaprendida(dg, monkeypatch):
                                                      "10.0.0.3": [mk("BM-PAT-A-058")]}))
     assert digifort.locate("BM-PAT-A-058", SRV)["achada"]["ip"] == "10.0.0.3"
     assert digifort.lembrada("BM-PAT-A-058")["ip"] == "10.0.0.3"
+
+
+def test_encerrar_pela_tela_de_camera(client, monkeypatch):
+    from backend.routes import camera
+    texto = "Causa base: Câmera sem comunicação.\nDescrição: Câmera BM-LAM-CLI-048 testada. Incidente encerrado."
+    assert client.post("/incidents/INC1/camera/close", json={"texto": texto}).status_code == 422  # sem print ainda
+
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048")]}))
+    monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": True, "active": True, "inactive_s": 0, "active_s": 9})
+    monkeypatch.setattr(digifort, "snapshot", lambda ip, n: b"\xff\xd8" + b"0" * 600)
+    client.post("/incidents/INC1/camera/check")
+
+    enviados, estado = [], {"state": "2", "work_notes": ""}
+    monkeypatch.setattr(camera.sn_api, "list_attachment_names", lambda sid: [])
+    monkeypatch.setattr(camera.sn_api, "get_current", lambda sid: dict(estado))
+    monkeypatch.setattr(camera.sn_api, "patch_incident", lambda sid, f: enviados.append(f) or True)
+    r = client.post("/incidents/INC1/camera/close", json={"texto": texto}).json()
+    assert r["status"] == "encerrado" and r["dry_run"] is True
+    assert enviados[0]["state"] == "6" and enviados[0]["close_code"] == "Solved" and enviados[0]["close_notes"] == texto
+    assert enviados[0]["work_notes"] == texto
+
+    estado.update(state="6")
+    assert client.post("/incidents/INC1/camera/close", json={"texto": texto}).json()["status"] == "já encerrado"
+    assert len(enviados) == 1
+
+
+def test_encerrar_nao_repete_work_note_ja_registrada(client, monkeypatch):
+    from backend.routes import camera
+    texto = "Causa base: Câmera sem comunicação.\nDescrição: Câmera BM-LAM-CLI-048 testada. Incidente encerrado."
+    monkeypatch.setattr(digifort, "inventario", inv({"10.0.0.1": [mk("BM-LAM-CLI-048")]}))
+    monkeypatch.setattr(digifort, "camera_state", lambda ip, n: {"working": True, "active": True, "inactive_s": 0, "active_s": 9})
+    monkeypatch.setattr(digifort, "snapshot", lambda ip, n: b"\xff\xd8" + b"0" * 600)
+    client.post("/incidents/INC1/camera/check")
+    enviados = []
+    monkeypatch.setattr(camera.sn_api, "list_attachment_names", lambda sid: [])
+    monkeypatch.setattr(camera.sn_api, "get_current", lambda sid: {"state": "2", "work_notes": "02/10 - Victor\n" + texto})
+    monkeypatch.setattr(camera.sn_api, "patch_incident", lambda sid, f: enviados.append(f) or True)
+    client.post("/incidents/INC1/camera/close", json={"texto": texto})
+    assert "work_notes" not in enviados[0] and enviados[0]["close_notes"] == texto

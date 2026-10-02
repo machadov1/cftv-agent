@@ -67,3 +67,33 @@ def test_serie_diaria_preenche_dias_sem_movimento(tmp_path, monkeypatch):
     db.add_history("INC1", "analise", "x", False, 0)
     s = db.serie_diaria(5)
     assert len(s) == 5 and s[-1]["despachos"] == 1 and s[-1]["analises"] == 1 and s[0]["despachos"] == 0
+
+
+def test_resumir_disponibilidade_sem_contar_reserva_e_desativadas():
+    from backend import topologia as topo
+
+    def c(nome, active=True, working=True):
+        return {"nome": nome, "active": active, "working": working}
+    unidades = [{"unidade": "Barra Mansa", "servidores": [
+        {"nome": "PRINCIPAL", "ip": "1", "tipo": "Servidor CFTV"},
+        {"nome": "RESERVA", "ip": "2", "tipo": "Faillover CFTV"},
+        {"nome": "FORA", "ip": "3", "tipo": "Servidor CFTV"},
+        {"nome": "SEM-IP", "ip": None, "tipo": "Servidor CFTV"}]}]
+    leituras = {"1": {"cameras": [c("A"), c("B"), c("C", working=False), c("D", active=False)], "lido_em": "x"},
+                "2": {"cameras": [c("A", active=False), c("B", active=False)], "lido_em": "x"},
+                "3": {"erro": "recusada", "tipo_erro": "credencial"}}
+    u = topo.resumir(unidades, leituras)[0]
+    principal, reserva, fora, sem_ip = u["servidores"]
+    assert principal["cameras"]["disponibilidade"] == pytest.approx(66.7) and not principal["reserva"]
+    assert reserva["reserva"] and reserva["cameras"]["disponibilidade"] is None
+    assert fora["ok"] is False and fora["tipo_erro"] == "credencial" and sem_ip["ok"] is None
+    # A e B aparecem nos dois servidores: contam uma vez, com o estado da cópia ativa
+    assert u["cameras"]["ativas"] == 3 and u["cameras"]["ok"] == 2
+    assert (u["servidores_respondendo"], u["servidores_total"]) == (2, 3)
+
+
+def test_rota_mapa(client, monkeypatch):
+    cams = [{"nome": "A", "descricao": "", "grupo": "", "active": True, "working": True, "inactive_s": 0}]
+    monkeypatch.setattr(digifort, "inventario", lambda ip, forcar=False: {"ip": ip, "lido_em": "x", "cameras": cams})
+    r = client.get("/servidores/topologia/mapa").json()
+    assert r["geral"]["disponibilidade"] == 100.0 and r["geral"]["servidores_respondendo"] == 3

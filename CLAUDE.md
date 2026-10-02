@@ -249,15 +249,25 @@ grande (Bahnschrift, fonte do próprio Windows: sem fonte externa, a rede corpor
   código ("câmera da MR4") nunca escolhe sozinho; depois da escolha o incidente passa a usar o nome real (print e nota).
   Lembrada que está **desativada** (servidor reserva) não encerra a busca: procura a cópia ativa e reaprende.
   `DigifortError.tipo`: credencial | timeout | rede | config | resposta.
-- **Aba Câmeras e servidores** (`pages/CameraPage.jsx`, `components/CameraPanel.jsx`, `components/Topologia.jsx`): à esquerda
-  **Incidentes** (como antes) ou **Topologia** (unidade → servidores da lista → câmeras; `GET /servidores/topologia` só do CSV,
-  `GET /servidores/topologia/{ip}?forcar=` lê o Digifort só de IP da lista; selo do servidor = câmeras/sem sinal/desativadas ou o
-  motivo da falha; "todas desativadas (reserva?)"; câmera citada num incidente aberto mostra o INC). "Testar câmera" vale para
-  incidente da fila local **ou já em andamento** (lido direto do ServiceNow; a unidade vem da regra/campo/prefixo
-  aprendido/grupo, ou você escolhe). Fluxo: testar -> anexar print (segurar) -> work note de encerramento editável (segurar;
-  exige o print anexado, não repete, **não muda estado nem encerra**). Rotas em `routes/camera.py`.
-  Leitura real em 02/10: Barra Mansa 5/5 servidores ok; Piracicaba: CFTV04 e WIN-T23VM0PRR3M recusam a credencial (falta
-  entrada em `digifort_credenciais.json`), CFTV02 timeout, CFTV03/CFTV08 sem rota.
+- **Aba Câmeras e servidores** (`pages/CameraPage.jsx`): sub-abas **Topologia** (padrão) e **Teste de câmera** (incidente
+  vindo de outra tela abre direto no teste).
+  - **Topologia** (`components/TopologiaMapa.jsx`, estilo Packet Tracer): cada unidade é um nó (switch, cor da unidade,
+    disponibilidade e barra) ligado por cabos aos servidores (ícone de servidor com LEDs). Cabo/LED: verde >= 95%, âmbar
+    85-95%, vermelho < 85% ou servidor sem leitura; tracejado = reserva (todas desativadas) ou não lido. **Disponibilidade =
+    câmeras transmitindo ÷ câmeras ativas** (desativadas fora; a mesma câmera no principal e no reserva conta uma vez, com o
+    melhor estado). `GET /servidores/topologia/mapa?forcar=` (`backend/topologia.py`: `resumir` puro + `ler_todos`, 8
+    servidores em paralelo, cache de 10 min do inventário; ~12 s a frio para 62 servidores). Clique na unidade ou no servidor
+    abre o **card** com todas as câmeras por servidor (`GET /servidores/topologia/{ip}`, só IP da lista), filtro por nome e
+    estado (sem sinal / desativadas / transmitindo), tempo sem sinal e INC aberto que cita a câmera (leva ao teste).
+    Ordem A-Z ou pior primeiro. Leitura de 02/10: 89% da rede; 40 de 62 servidores respondendo.
+  - **Teste de câmera** (`components/CameraPanel.jsx`, rotas em `routes/camera.py`): vale para incidente da fila local **ou
+    já em andamento** (lido direto do ServiceNow; a unidade vem da regra/campo/prefixo aprendido/grupo, ou você escolhe).
+    Fluxo: testar -> anexar print (segurar) -> texto de encerramento editável -> **Registrar work note** (só a nota, segue
+    aberto) e/ou **Encerrar incidente** (`POST /incidents/{n}/camera/close`, segurar: state 6, close_code Solved,
+    close_notes + work note; exige print gerado e anexado, confere no SN se já está encerrado (6/7/24) e não repete a work
+    note já registrada; respeita dry-run). Snapshot espera até 30 s (a 1ª imagem de uma câmera leva ~6 s).
+  - Credenciais em 02/10: Piracicaba CFTV04 e WIN-T23VM0PRR3M recusam a senha (falta entrada em
+    `digifort_credenciais.json`); Feira de Santana também.
 - **Navegação** (`App.jsx`, `Header.jsx`, `components/Secoes.jsx`): abas Operação · Câmeras e servidores · Backlog (sub-abas
   Backlog | Tasks). No cabeçalho: botão **IA** (magenta, lâmpada = 9router ligado) abre o Agente; célula de **métricas** (barras
   de despachos dos últimos 7 dias, `GET /metrics/serie`, + % auto) abre Métricas (com a faixa de KPIs no topo);
