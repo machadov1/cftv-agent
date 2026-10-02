@@ -65,22 +65,31 @@ def _cred(ip: str) -> tuple[str, str]:
     return c.get("usuario") or config.DIGIFORT_USER, c.get("senha") or config.DIGIFORT_PASSWORD
 
 
-def _get(ip: str, path: str, params: dict | None = None) -> requests.Response:
+SNAPSHOT_TIMEOUT = 30  # s: a 1ª imagem de uma câmera leva ~6 s (o servidor abre o vídeo); as seguintes, < 1 s
+
+
+def _get(ip: str, path: str, params: dict | None = None, leitura: float | None = None) -> requests.Response:
     if not configured():
         raise DigifortError("Digifort não configurado: defina DIGIFORT_USER e DIGIFORT_PASSWORD no .env", "config")
     user, pwd = _cred(ip)
     url = f"http://{ip}:{config.DIGIFORT_PORT}/Interface/{path}"
     debug_log(f"→ {ip}:{config.DIGIFORT_PORT}/Interface/{path}")
     try:
-        r = requests.get(url, params=params or {}, auth=(user, pwd), timeout=(3, config.DIGIFORT_TIMEOUT))
+        r = requests.get(url, params=params or {}, auth=(user, pwd), timeout=(3, leitura or config.DIGIFORT_TIMEOUT))
         debug_log(f"← {r.status_code} ({len(r.content)} bytes)")
         return r
-    except requests.exceptions.Timeout:
-        msg = f"{ip}: timeout ({config.DIGIFORT_TIMEOUT}s); porta {config.DIGIFORT_PORT} aberta?"
+    except requests.exceptions.ConnectTimeout:
+        msg = f"{ip}: a porta {config.DIGIFORT_PORT} não atendeu em 3 s (servidor desligado, firewall ou sem rota)"
         debug_log(f"✗ {msg}")
         raise DigifortError(msg, "timeout") from None
+    except requests.exceptions.ReadTimeout:
+        msg = (f"{ip}: conectou, mas o Digifort não respondeu em {leitura or config.DIGIFORT_TIMEOUT:g} s "
+               "(servidor lento ou sobrecarregado; tente de novo)")
+        debug_log(f"✗ {msg}")
+        raise DigifortError(msg, "lento") from None
     except requests.exceptions.ConnectionError as e:
-        msg = f"{ip}: sem conexão; VPN/rede/porta {config.DIGIFORT_PORT}?"
+        msg = (f"{ip}: conexão recusada ou sem rota na porta {config.DIGIFORT_PORT} (Digifort parado, firewall ou porta "
+               f"diferente; confira com Test-NetConnection {ip} -Port {config.DIGIFORT_PORT})")
         debug_log(f"✗ {msg}")
         raise DigifortError(msg, "rede") from e
     except requests.RequestException as e:
@@ -214,7 +223,8 @@ def snapshot(ip: str, name: str) -> bytes:
     debug_log(f"Capturando snapshot de '{name}' em {ip}...")
     try:
         resp = _get(ip, "Cameras/GetSnapshot", {"Camera": name, "Profile": "Recording", "Width": 1280, "Height": 720,
-                                                 "KeepAspectRatio": "TRUE", "Quality": 85, "RenderInfo": "Name"})
+                                                 "KeepAspectRatio": "TRUE", "Quality": 85, "RenderInfo": "Name"},
+                    leitura=SNAPSHOT_TIMEOUT)
     except DigifortError as e:
         debug_log(f"✗ Falha ao capturar snapshot: {e}")
         raise

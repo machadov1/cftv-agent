@@ -146,12 +146,37 @@ def test_erro_tem_tipo(dg, monkeypatch):
         digifort.inventario("10.0.0.1")
     assert e.value.tipo == "credencial"
 
-    def timeout(*a, **k):
-        raise requests.exceptions.Timeout()
-    monkeypatch.setattr(digifort.requests, "get", timeout)
+    def porta(*a, **k):
+        raise requests.exceptions.ConnectTimeout()
+    monkeypatch.setattr(digifort.requests, "get", porta)
     with pytest.raises(digifort.DigifortError) as e:
         digifort.inventario("10.0.0.2")
-    assert e.value.tipo == "timeout"
+    assert e.value.tipo == "timeout" and "não atendeu" in str(e.value)
+
+    def lento(*a, **k):
+        raise requests.exceptions.ReadTimeout()
+    monkeypatch.setattr(digifort.requests, "get", lento)
+    with pytest.raises(digifort.DigifortError) as e:
+        digifort.inventario("10.0.0.4")
+    assert e.value.tipo == "lento" and "conectou" in str(e.value) and "porta" not in str(e.value)
+
+
+def test_snapshot_espera_mais_que_as_consultas(dg, monkeypatch):
+    usados = []
+
+    class R:
+        status_code = 200
+        headers = {"Content-Type": "text/plain"}
+        content = b""
+        text = "RESPONSE_CODE=0"
+
+    def fake(url, params=None, auth=None, timeout=None):
+        usados.append(timeout[1])
+        return R()
+    monkeypatch.setattr(digifort.requests, "get", fake)
+    with pytest.raises(digifort.DigifortError):
+        digifort.snapshot("10.0.0.1", "CAM")
+    assert usados[0] == digifort.SNAPSHOT_TIMEOUT
 
 
 def test_sem_credencial(monkeypatch):
@@ -251,7 +276,7 @@ def test_server_time_e_faixa_com_hora_do_servidor(dg, monkeypatch):
         text = "RESPONSE_CODE=0\nDATETIME=2026-09-30 15:02:24.374\n"
         headers = {"Content-Type": "image/jpeg"}
         content = jpeg
-    monkeypatch.setattr(digifort, "_get", lambda ip, path, params=None: R())
+    monkeypatch.setattr(digifort, "_get", lambda ip, path, params=None, leitura=None: R())
     assert digifort.server_time("10.0.0.1") == "30/09/2026 15:02:24"
     img = Image.open(io.BytesIO(digifort.snapshot("10.0.0.1", "CAM")))
     assert img.width == 1280 and img.height > 720          # faixa acrescentada, vídeo intacto

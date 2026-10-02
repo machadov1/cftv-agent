@@ -6,7 +6,7 @@ import { Button, inputClass, unitColor } from './ui';
 const LABEL = 'font-mono text-[12.5px] font-bold uppercase tracking-[0.14em] text-mute';
 const fold = (s) => (s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const ERRO = { credencial: 'credencial recusada', timeout: 'sem resposta (timeout)', rede: 'sem rede/VPN', config: 'Digifort não configurado', resposta: 'resposta inesperada' };
+const ERRO = { credencial: 'credencial recusada', timeout: 'porta não atende', lento: 'servidor lento', rede: 'conexão recusada', config: 'Digifort não configurado', resposta: 'resposta inesperada' };
 
 function Ponto({ cam }) {
   const [cls, t] = cam.active === false ? ['bg-mute', 'desativada no cadastro'] : cam.working === false ? ['bg-bad', 'sem sinal']
